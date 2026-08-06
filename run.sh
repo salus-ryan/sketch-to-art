@@ -1,36 +1,36 @@
 #!/bin/bash
-# Sketch-to-Art: Real-time AI Drawing App
-# Run this script to start the server
-
+# Sketch-to-Art: Real-time Drawing Relay
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$SCRIPT_DIR"
 
-# Check if venv exists
 if [ ! -d "venv" ]; then
     echo "Creating virtual environment..."
     python3 -m venv venv
     source venv/bin/activate
-    echo "Installing dependencies (this may take a few minutes)..."
     pip install --upgrade pip
     pip install -r requirements.txt
 else
     source venv/bin/activate
 fi
 
+# Get local IP (works on macOS and Linux)
+if command -v ipconfig &>/dev/null 2>&1; then
+    IP=$(ipconfig getifaddr en0 2>/dev/null || echo "localhost")
+else
+    IP=$(hostname -I 2>/dev/null | awk '{print $1}' || echo "localhost")
+fi
+
 echo ""
-echo "============================================"
-echo "  Sketch → Art: Real-time AI Drawing"
-echo "============================================"
+echo "========================================"
+echo "  Draw on your phone, see it on screen"
+echo "========================================"
 echo ""
-echo "Starting server on http://0.0.0.0:8765"
+echo "  Phone:  http://${IP}:8765"
+echo "  Viewer: http://${IP}:8765/viewer"
 echo ""
-echo "→ Open this URL on your Surface Pro (same network):"
-echo "  http://$(hostname -I | awk '{print $1}'):8765"
-echo ""
-echo "First run will download ~6GB of AI models."
-echo "============================================"
+echo "========================================"
 echo ""
 
 cd backend
