@@ -3,142 +3,100 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Art Viewer — Stream Output</title>
+    <title>Viewer</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body {
-            background: #000;
-            height: 100vh;
-            width: 100vw;
-            overflow: hidden;
-            position: relative;
+        html, body { background: #000; height: 100%; width: 100%; overflow: hidden; }
+        #c { position: absolute; }
+        .dot {
+            position: fixed; top: 12px; right: 12px;
+            width: 10px; height: 10px; border-radius: 50%;
+            background: #333; z-index: 99;
         }
-        #sketchCanvas {
-            position: absolute;
-            top: 0; left: 0;
-            width: 100%; height: 100%;
-            z-index: 2;
-        }
-        #aiCanvas {
-            position: absolute;
-            top: 0; left: 0;
-            width: 100%; height: 100%;
-            z-index: 1;
-            opacity: 0;
-            transition: opacity 0.8s ease;
-        }
-        #aiCanvas.visible { opacity: 0.85; }
-        .status {
-            position: fixed;
-            top: 16px;
-            right: 16px;
-            z-index: 100;
-            padding: 8px 14px;
-            background: rgba(0,0,0,0.7);
-            backdrop-filter: blur(8px);
-            border-radius: 20px;
-            font-family: -apple-system, sans-serif;
-            font-size: 12px;
-            color: #aaa;
-        }
+        .dot.ok { background: #22c55e; box-shadow: 0 0 6px #22c55e; }
     </style>
 </head>
 <body>
-    <canvas id="aiCanvas"></canvas>
-    <canvas id="sketchCanvas"></canvas>
-    <div class="status" id="status">Waiting for drawer...</div>
+    <canvas id="c"></canvas>
+    <div class="dot" id="dot"></div>
 
     <script>
-        const sketchCanvas = document.getElementById('sketchCanvas');
-        const aiCanvas = document.getElementById('aiCanvas');
-        const ctx = sketchCanvas.getContext('2d');
-        const actx = aiCanvas.getContext('2d');
+    (function() {
+        const canvas = document.getElementById('c');
+        const ctx = canvas.getContext('2d');
+        const dot = document.getElementById('dot');
 
-        // Match the drawer's fixed square canvas
-        const CANVAS_SIZE = 1024;
-        sketchCanvas.width = CANVAS_SIZE;
-        sketchCanvas.height = CANVAS_SIZE;
-        aiCanvas.width = CANVAS_SIZE;
-        aiCanvas.height = CANVAS_SIZE;
-        ctx.fillStyle = '#ffffff';
-        ctx.fillRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
+        const SIZE = 1024;
+        canvas.width = SIZE;
+        canvas.height = SIZE;
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(0, 0, SIZE, SIZE);
 
-        function applyTransform() {
-            // Fit square canvas within viewport, centered
-            const s = Math.min(window.innerWidth, window.innerHeight) / CANVAS_SIZE;
-            const cx = (window.innerWidth - CANVAS_SIZE * s) / 2;
-            const cy = (window.innerHeight - CANVAS_SIZE * s) / 2;
-            const transform = `translate(${cx}px, ${cy}px) scale(${s})`;
-            sketchCanvas.style.transform = transform;
-            aiCanvas.style.transform = transform;
-            sketchCanvas.style.transformOrigin = '0 0';
-            aiCanvas.style.transformOrigin = '0 0';
+        function fit() {
+            const vw = window.innerWidth;
+            const vh = window.innerHeight;
+            // Fit inside viewport (contain mode for viewer)
+            const s = Math.min(vw / SIZE, vh / SIZE);
+            const left = (vw - SIZE * s) / 2;
+            const top = (vh - SIZE * s) / 2;
+            canvas.style.transform = `translate(${left}px, ${top}px) scale(${s})`;
+            canvas.style.transformOrigin = '0 0';
         }
-        applyTransform();
-        window.addEventListener('resize', applyTransform);
+        fit();
+        window.addEventListener('resize', fit);
 
-        function connectWS() {
-            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-            const ws = new WebSocket(`${protocol}//${window.location.host}/ws/viewer`);
+        function drawStroke(x1, y1, x2, y2, w) {
+            ctx.beginPath();
+            ctx.moveTo(x1 * SIZE, y1 * SIZE);
+            ctx.lineTo(x2 * SIZE, y2 * SIZE);
+            ctx.strokeStyle = '#000';
+            ctx.lineWidth = w * SIZE;
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+            ctx.stroke();
+        }
 
-            ws.onopen = () => {
-                document.getElementById('status').textContent = 'Connected — draw on your phone';
-            };
-            ws.onclose = () => { setTimeout(connectWS, 3000); };
+        function connect() {
+            const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const ws = new WebSocket(`${proto}//${location.host}/ws/viewer`);
+
+            ws.onopen = () => { dot.classList.add('ok'); };
+            ws.onclose = () => { dot.classList.remove('ok'); setTimeout(connect, 2000); };
             ws.onerror = () => ws.close();
 
             ws.onmessage = (event) => {
                 const data = JSON.parse(event.data);
 
-                if (data.type === 'stroke') {
-                    // Draw the stroke mirrored from the phone (both use 1024x1024)
-                    ctx.beginPath();
-                    ctx.moveTo(data.x1 * CANVAS_SIZE, data.y1 * CANVAS_SIZE);
-                    ctx.lineTo(data.x2 * CANVAS_SIZE, data.y2 * CANVAS_SIZE);
-                    ctx.strokeStyle = '#000000';
-                    ctx.lineWidth = data.size * CANVAS_SIZE;
-                    ctx.lineCap = 'round';
-                    ctx.lineJoin = 'round';
-                    ctx.stroke();
+                if (data.type === 'strokes') {
+                    // Batched strokes — draw all at once
+                    for (const s of data.data) {
+                        drawStroke(s.x1, s.y1, s.x2, s.y2, s.w);
+                    }
+                }
 
-                    // Hide AI overlay while new strokes come in
-                    aiCanvas.classList.remove('visible');
-                    document.getElementById('status').textContent = 'Drawing...';
+                else if (data.type === 'stroke') {
+                    drawStroke(data.x1, data.y1, data.x2, data.y2, data.size);
                 }
 
                 else if (data.type === 'sync') {
-                    // Full canvas sync — replaces everything
-                    const syncImg = new Image();
-                    syncImg.onload = () => {
-                        ctx.fillStyle = '#ffffff';
-                        ctx.fillRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
-                        ctx.drawImage(syncImg, 0, 0, CANVAS_SIZE, CANVAS_SIZE);
+                    const img = new Image();
+                    img.onload = () => {
+                        ctx.fillStyle = '#fff';
+                        ctx.fillRect(0, 0, SIZE, SIZE);
+                        ctx.drawImage(img, 0, 0, SIZE, SIZE);
                     };
-                    syncImg.src = 'data:image/jpeg;base64,' + data.canvas;
+                    img.src = 'data:image/jpeg;base64,' + data.canvas;
                 }
 
                 else if (data.type === 'clear') {
-                    ctx.fillStyle = '#ffffff';
-                    ctx.fillRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
-                    actx.clearRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
-                    aiCanvas.classList.remove('visible');
-                    document.getElementById('status').textContent = 'Cleared';
-                }
-
-                else if (data.type === 'result' && data.image) {
-                    const img = new Image();
-                    img.onload = () => {
-                        actx.clearRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
-                        actx.drawImage(img, 0, 0, CANVAS_SIZE, CANVAS_SIZE);
-                        aiCanvas.classList.add('visible');
-                        document.getElementById('status').textContent = `AI: ${data.time}s`;
-                    };
-                    img.src = 'data:image/webp;base64,' + data.image;
+                    ctx.fillStyle = '#fff';
+                    ctx.fillRect(0, 0, SIZE, SIZE);
                 }
             };
         }
 
-        connectWS();
+        connect();
+    })();
     </script>
 </body>
 </html>
