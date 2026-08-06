@@ -99,14 +99,29 @@
         function connect() {
             const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
             ws = new WebSocket(`${proto}//${location.host}/ws`);
-            ws.onopen = () => { dot.classList.add('ok'); flushStrokes(); };
+            ws.onopen = () => {
+                dot.classList.add('ok');
+                flushStrokes();
+                // Send current canvas state so server + viewers are in sync
+                sendSync();
+            };
             ws.onclose = () => { dot.classList.remove('ok'); setTimeout(connect, 2000); };
             ws.onerror = () => ws.close();
+            ws.onmessage = (event) => {
+                const msg = JSON.parse(event.data);
+                if (msg.type === 'request_sync') {
+                    sendSync();
+                }
+            };
         }
         connect();
 
         function send(msg) {
             if (ws && ws.readyState === 1) ws.send(JSON.stringify(msg));
+        }
+
+        function sendSync() {
+            send({ type: 'sync', canvas: canvas.toDataURL('image/jpeg', 0.6).split(',')[1] });
         }
 
         function bufferStroke(x1, y1, x2, y2, w) {
