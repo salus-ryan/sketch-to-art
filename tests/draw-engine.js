@@ -112,31 +112,71 @@ const BRAILLE = {
   '§omega': [2,4,5,6],        // ω
 };
 
-// Dot positions within a cell (normalized 0–1 within cell bounds)
-// 2×4 grid: 4 rows instead of 3
-const DOT_POS = {
-  1: [0.3, 0.12],  4: [0.7, 0.12],
-  2: [0.3, 0.37],  5: [0.7, 0.37],
-  3: [0.3, 0.62],  6: [0.7, 0.62],
-  7: [0.3, 0.88],  8: [0.7, 0.88],
-};
+// ─── Generalized n-dot Braille ───
+// b ∈ {-1, 0, +1}^n
+// Dots arranged in a 2×⌈n/2⌉ grid. Column-major numbering:
+//   [1] [k+1]
+//   [2] [k+2]
+//   ... [...]
+//   [k] [2k]     where k = ⌈n/2⌉
 
-// Draw a single braille cell as small circles at (ox, oy) with size (cw, ch)
-function brailleCell(dots, ox, oy, cw, ch) {
+// Compute dot positions for n-dot braille (normalized 0–1 within cell)
+function dotPositions(n) {
+  const rows = Math.ceil(n / 2);
+  const pos = {};
+  for (let i = 1; i <= n; i++) {
+    const col = i <= rows ? 0 : 1;              // left or right column
+    const row = i <= rows ? i - 1 : i - rows - 1;
+    pos[i] = [
+      col === 0 ? 0.3 : 0.7,
+      (row + 0.5) / rows,  // evenly spaced vertically
+    ];
+  }
+  return pos;
+}
+
+// Precomputed positions for 8-dot (the standard)
+const DOT_POS_8 = dotPositions(8);
+
+// Draw a single n-dot braille cell at (ox, oy) with size (cw, ch)
+// dots: array of dot numbers (positive = asserted) OR
+//       object { dot: value } for signed braille (value in {-1, 0, +1})
+function brailleCell(dots, ox, oy, cw, ch, n = 8) {
   const strokes = [];
-  const dotR = Math.min(cw, ch) * 0.08;
+  const positions = n === 8 ? DOT_POS_8 : dotPositions(n);
+  const dotR = Math.min(cw, ch) * (0.6 / Math.ceil(n / 2)); // scale with n
   const segments = 8;
-  for (const d of dots) {
-    const [dx, dy] = DOT_POS[d];
+
+  // Normalize input: accept [1,3,5] or {1:+1, 3:-1, 5:+1}
+  let signedDots;
+  if (Array.isArray(dots)) {
+    signedDots = {};
+    for (const d of dots) signedDots[Math.abs(d)] = d > 0 ? 1 : -1;
+  } else {
+    signedDots = dots;
+  }
+
+  for (const [dStr, value] of Object.entries(signedDots)) {
+    const d = parseInt(dStr);
+    if (!positions[d] || value === 0) continue;
+    const [dx, dy] = positions[d];
     const cx = ox + dx * cw;
     const cy = oy + dy * ch;
-    // Small circle for each dot
-    const pts = [];
-    for (let i = 0; i <= segments; i++) {
-      const a = (i / segments) * Math.PI * 2;
-      pts.push([cx + Math.cos(a) * dotR, cy + Math.sin(a) * dotR]);
+
+    if (value > 0) {
+      // Asserted: filled circle
+      const pts = [];
+      for (let i = 0; i <= segments; i++) {
+        const a = (i / segments) * Math.PI * 2;
+        pts.push([cx + Math.cos(a) * dotR, cy + Math.sin(a) * dotR]);
+      }
+      strokes.push(pts);
+    } else {
+      // Denied/inhibited: X mark
+      const r = dotR * 0.9;
+      strokes.push([[cx - r, cy - r], [cx + r, cy + r]]);
+      strokes.push([[cx + r, cy - r], [cx - r, cy + r]]);
     }
-    strokes.push(pts);
   }
   return strokes;
 }
@@ -347,6 +387,100 @@ const CURRICULUM = [
       { type: 'raw', strokes: brailleText('1/n§exp2', 0.05, 0.4, 0.055, 0.13) },
       { type: 'raw', strokes: brailleText('=§pi§exp2/6', 0.05, 0.65, 0.055, 0.13) },
     ]}),
+  },
+  // ─── Generalized n-dot Braille ───
+  {
+    name: 'ndot-hierarchy',
+    description: 'Draw B₆ ⊂ B₈ ⊂ B₁₀ — the braille hierarchy',
+    draw: () => {
+      const strokes = [];
+      const labels = [6, 8, 10];
+      const y = 0.15;
+      for (let col = 0; col < 3; col++) {
+        const n = labels[col];
+        const ox = 0.05 + col * 0.32;
+        // Draw a fully-asserted cell (all dots on) for each n
+        const allDots = {};
+        for (let d = 1; d <= n; d++) allDots[d] = 1;
+        strokes.push(...brailleCell(allDots, ox, y, 0.12, 0.25, n));
+        // Draw a half-asserted cell (odds only)
+        const oddDots = {};
+        for (let d = 1; d <= n; d += 2) oddDots[d] = 1;
+        strokes.push(...brailleCell(oddDots, ox + 0.15, y, 0.12, 0.25, n));
+      }
+      // Label row: "6" "8" "10" in standard braille below
+      strokes.push(...brailleText('6  8  10', 0.07, 0.55, 0.055, 0.13));
+      return { type: 'raw', strokes };
+    },
+  },
+  {
+    name: 'ndot-negative',
+    description: 'Negative-dot braille: b ∈ {-1, 0, +1}⁸ — assert, deny, absent',
+    draw: () => {
+      const strokes = [];
+      // Cell 1: all asserted
+      strokes.push(...brailleCell(
+        {1:1, 2:1, 3:1, 4:1, 5:1, 6:1, 7:1, 8:1},
+        0.05, 0.15, 0.14, 0.28, 8
+      ));
+      // Cell 2: mixed — some asserted, some denied
+      strokes.push(...brailleCell(
+        {1:1, 2:-1, 3:1, 4:-1, 5:1, 6:-1, 7:1, 8:-1},
+        0.25, 0.15, 0.14, 0.28, 8
+      ));
+      // Cell 3: all denied
+      strokes.push(...brailleCell(
+        {1:-1, 2:-1, 3:-1, 4:-1, 5:-1, 6:-1, 7:-1, 8:-1},
+        0.45, 0.15, 0.14, 0.28, 8
+      ));
+      // Cell 4: sparse — only dots 1,4 asserted, 3,6 denied
+      strokes.push(...brailleCell(
+        {1:1, 3:-1, 4:1, 6:-1},
+        0.65, 0.15, 0.14, 0.28, 8
+      ));
+      // Label
+      strokes.push(...brailleText('+1 +- -1 ?', 0.07, 0.55, 0.055, 0.13));
+      return { type: 'raw', strokes };
+    },
+  },
+  {
+    name: 'ndot-12',
+    description: 'Draw 12-dot braille cells — 2×6 grid, 4096 patterns',
+    draw: () => {
+      const strokes = [];
+      // Random 12-dot cells
+      const patterns = [
+        {1:1, 3:1, 5:1, 7:1, 9:1, 11:1},             // all left column
+        {2:1, 4:1, 6:1, 8:1, 10:1, 12:1},             // all right column
+        {1:1, 4:1, 5:1, 8:1, 9:1, 12:1},              // diagonal
+        {1:1, 2:1, 3:-1, 4:-1, 7:1, 8:1, 11:-1, 12:-1}, // signed
+        {1:1, 2:1, 3:1, 4:1, 5:1, 6:1, 7:1, 8:1, 9:1, 10:1, 11:1, 12:1}, // full
+      ];
+      for (let i = 0; i < patterns.length; i++) {
+        strokes.push(...brailleCell(patterns[i], 0.05 + i * 0.18, 0.1, 0.12, 0.4, 12));
+      }
+      return { type: 'raw', strokes };
+    },
+  },
+  {
+    name: 'ndot-cancellation',
+    description: 'Demonstrate (+d) + (-d) = 0 — algebraic cancellation',
+    draw: () => {
+      const strokes = [];
+      // Cell with +1 dots
+      strokes.push(...brailleCell({1:1, 2:1, 3:1}, 0.05, 0.2, 0.12, 0.22, 6));
+      // Plus sign
+      strokes.push(...brailleText('+', 0.20, 0.25, 0.06, 0.14));
+      // Cell with -1 dots (same positions)
+      strokes.push(...brailleCell({1:-1, 2:-1, 3:-1}, 0.30, 0.2, 0.12, 0.22, 6));
+      // Equals sign
+      strokes.push(...brailleText('=', 0.45, 0.25, 0.06, 0.14));
+      // Empty cell (cancelled out — draw the grid outline only)
+      strokes.push(...brailleCell({}, 0.55, 0.2, 0.12, 0.22, 6));
+      // Second row: full expression in text
+      strokes.push(...brailleText('(+d)+(-d)=0', 0.05, 0.55, 0.05, 0.12));
+      return { type: 'raw', strokes };
+    },
   },
   {
     name: 'shapes',
@@ -655,6 +789,7 @@ function generateCurriculum(count, startSeed = 0) {
 
 module.exports = {
   FONT, SHAPES, BRAILLE, CURRICULUM,
-  drawStrokes, drawText, drawShape, brailleText, brailleCell, executeLesson,
-  kernel, generateCurriculum, seededRng,
+  drawStrokes, drawText, drawShape,
+  brailleText, brailleCell, dotPositions, tokenizeBraille,
+  executeLesson, kernel, generateCurriculum, seededRng,
 };
