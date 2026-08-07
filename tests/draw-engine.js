@@ -44,6 +44,67 @@ const FONT = {
   '3': [[[0.1,0.1],[0.3,0],[0.5,0.1],[0.5,0.3],[0.35,0.45]],[[0.35,0.45],[0.5,0.6],[0.5,0.85],[0.3,1],[0.1,0.9]]],
 };
 
+// ─── Braille ───
+// Standard 6-dot braille: dots numbered 1-6 in a 2×3 grid
+//   [1] [4]
+//   [2] [5]
+//   [3] [6]
+// Each letter maps to which dots are raised.
+const BRAILLE = {
+  a: [1],           b: [1,2],         c: [1,4],         d: [1,4,5],
+  e: [1,5],         f: [1,2,4],       g: [1,2,4,5],     h: [1,2,5],
+  i: [2,4],         j: [2,4,5],       k: [1,3],         l: [1,2,3],
+  m: [1,3,4],       n: [1,3,4,5],     o: [1,3,5],       p: [1,2,3,4],
+  q: [1,2,3,4,5],   r: [1,2,3,5],     s: [2,3,4],       t: [2,3,4,5],
+  u: [1,3,6],       v: [1,2,3,6],     w: [2,4,5,6],     x: [1,3,4,6],
+  y: [1,3,4,5,6],   z: [1,3,5,6],
+  ' ': [],
+  // number indicator
+  '#': [3,4,5,6],
+};
+
+// Dot positions within a cell (normalized 0–1 within cell bounds)
+const DOT_POS = {
+  1: [0.3, 0.15],  4: [0.7, 0.15],
+  2: [0.3, 0.50],  5: [0.7, 0.50],
+  3: [0.3, 0.85],  6: [0.7, 0.85],
+};
+
+// Draw a single braille cell as small circles at (ox, oy) with size (cw, ch)
+function brailleCell(dots, ox, oy, cw, ch) {
+  const strokes = [];
+  const dotR = Math.min(cw, ch) * 0.08;
+  const segments = 8;
+  for (const d of dots) {
+    const [dx, dy] = DOT_POS[d];
+    const cx = ox + dx * cw;
+    const cy = oy + dy * ch;
+    // Small circle for each dot
+    const pts = [];
+    for (let i = 0; i <= segments; i++) {
+      const a = (i / segments) * Math.PI * 2;
+      pts.push([cx + Math.cos(a) * dotR, cy + Math.sin(a) * dotR]);
+    }
+    strokes.push(pts);
+  }
+  return strokes;
+}
+
+// Draw text as braille cells
+function brailleText(text, startX = 0.05, startY = 0.3, cellW = 0.07, cellH = 0.12) {
+  const strokes = [];
+  const spacing = cellW * 1.3;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i].toLowerCase();
+    const dots = BRAILLE[ch];
+    if (!dots || dots.length === 0) continue;  // space = no dots
+    const ox = startX + i * spacing;
+    const oy = startY;
+    strokes.push(...brailleCell(dots, ox, oy, cellW, cellH));
+  }
+  return strokes;
+}
+
 // ─── Shape Library ───
 const SHAPES = {
   circle: (cx, cy, r, segments = 24) => {
@@ -123,36 +184,55 @@ const SHAPES = {
 
   tree: (cx, cy, r) => [
     // trunk
-    [[cx - r * 0.08, cy + r * 0.3], [cx - r * 0.08, cy + r], [cx + r * 0.08, cy + r], [cx + r * 0.08, cy + r * 0.3]],
-    // canopy layers
-    ...SHAPES.triangle(cx, cy - r * 0.1, r * 0.5),
-    ...SHAPES.triangle(cx, cy + r * 0.1, r * 0.6),
-    ...SHAPES.triangle(cx, cy + r * 0.3, r * 0.7),
+    [[cx - r * 0.1, cy + r], [cx - r * 0.1, cy - r * 0.2],],
+    [[cx + r * 0.1, cy + r], [cx + r * 0.1, cy - r * 0.2],],
+    // canopy
+    ...SHAPES.triangle(cx, cy - r * 0.5, r * 0.5),
+    ...SHAPES.triangle(cx, cy - r * 0.2, r * 0.6),
+    ...SHAPES.triangle(cx, cy + r * 0.15, r * 0.7),
   ],
+
+  braille_cell: (cx, cy, r) => {
+    // Draw a random braille cell as a shape
+    const letters = 'abcdefghijklmnopqrstuvwxyz';
+    const ch = letters[Math.floor(Math.random() * letters.length)];
+    const dots = BRAILLE[ch] || [1];
+    return brailleCell(dots, cx - r, cy - r * 1.2, r * 2, r * 2.4);
+  },
 };
 
 // ─── Drawing Curriculum ───
 // Each lesson generates training data for the AI
 const CURRICULUM = [
   {
-    name: 'alphabet',
-    description: 'Write the full alphabet',
-    draw: () => ({ type: 'text', text: 'abcdefghijklm', row: 0 }),
+    name: 'braille-hello',
+    description: 'Write "hello" in braille',
+    draw: () => ({ type: 'raw', strokes: brailleText('hello') }),
   },
   {
-    name: 'alphabet-2',
-    description: 'Write the rest of the alphabet',
-    draw: () => ({ type: 'text', text: 'nopqrstuvwxyz', row: 0 }),
+    name: 'braille-world',
+    description: 'Write "world" in braille',
+    draw: () => ({ type: 'raw', strokes: brailleText('world') }),
+  },
+  {
+    name: 'braille-alpha',
+    description: 'Write a-m in braille',
+    draw: () => ({ type: 'raw', strokes: brailleText('abcdefghijklm', 0.02, 0.3, 0.055, 0.10) }),
+  },
+  {
+    name: 'braille-alpha-2',
+    description: 'Write n-z in braille',
+    draw: () => ({ type: 'raw', strokes: brailleText('nopqrstuvwxyz', 0.02, 0.3, 0.055, 0.10) }),
   },
   {
     name: 'commit-feat',
-    description: 'Handwrite a commit message',
-    draw: () => ({ type: 'text', text: 'feat: init' }),
+    description: 'Write "feat" in braille',
+    draw: () => ({ type: 'raw', strokes: brailleText('feat') }),
   },
   {
     name: 'commit-fix',
-    description: 'Handwrite a bug fix commit',
-    draw: () => ({ type: 'text', text: 'fix: null ref' }),
+    description: 'Write "fix" in braille',
+    draw: () => ({ type: 'raw', strokes: brailleText('fix') }),
   },
   {
     name: 'shapes',
@@ -299,7 +379,7 @@ function seededRng(seed) {
 function pick(rng, arr) { return arr[Math.floor(rng() * arr.length)]; }
 function range(rng, lo, hi) { return lo + rng() * (hi - lo); }
 
-const WORDS = [
+const BRAILLE_WORDS = [
   'hello', 'world', 'fix', 'feat', 'init', 'test', 'draw', 'art',
   'cat', 'dog', 'sun', 'moon', 'star', 'tree', 'home', 'love',
   'code', 'run', 'fast', 'slow', 'big', 'tiny', 'red', 'blue',
@@ -337,14 +417,16 @@ function kernel(level, seed) {
   }
 
   if (level === 1) {
-    // Glyph: random word
-    const word = pick(rng, WORDS);
-    const startX = range(rng, 0.05, 0.4);
-    const startY = range(rng, 0.25, 0.6);
+    // Braille word
+    const word = pick(rng, BRAILLE_WORDS);
+    const startX = range(rng, 0.05, 0.35);
+    const startY = range(rng, 0.2, 0.5);
+    const cellW = range(rng, 0.06, 0.09);
+    const cellH = cellW * 1.7;
     return {
       name: id, level,
-      description: `Glyph: write "${word}"`,
-      draw: () => ({ type: 'text', text: word, startX, startY }),
+      description: `Braille: "${word}"`,
+      draw: () => ({ type: 'raw', strokes: brailleText(word, startX, startY, cellW, cellH) }),
     };
   }
 
@@ -393,14 +475,14 @@ function kernel(level, seed) {
       const r = range(rng, 0.06, 0.15);
       shapes.push({ shape, cx, cy, r });
     }
-    const label = rng() > 0.5 ? pick(rng, WORDS) : null;
+    const label = rng() > 0.5 ? pick(rng, BRAILLE_WORDS) : null;
     const desc = shapes.map(s => s.shape).join(' + ') + (label ? ` labeled "${label}"` : '');
     return {
       name: id, level,
       description: `Composition: ${desc}`,
       draw: () => {
         const plan = { type: 'multi', parts: [{ type: 'shapes', shapes }] };
-        if (label) plan.parts.push({ type: 'text', text: label, startX: 0.1, startY: 0.88 });
+        if (label) plan.parts.push({ type: 'raw', strokes: brailleText(label, 0.1, 0.82, 0.05, 0.085) });
         return plan;
       },
     };
@@ -465,7 +547,7 @@ function generateCurriculum(count, startSeed = 0) {
 }
 
 module.exports = {
-  FONT, SHAPES, CURRICULUM,
-  drawStrokes, drawText, drawShape, executeLesson,
+  FONT, SHAPES, BRAILLE, CURRICULUM,
+  drawStrokes, drawText, drawShape, brailleText, brailleCell, executeLesson,
   kernel, generateCurriculum, seededRng,
 };
