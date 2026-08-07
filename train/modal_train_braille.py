@@ -111,6 +111,7 @@ def train(
     epochs: int = 2,
     braille_pretrain_steps: int = 2000,
     braille_dots: int = 6,
+    braille_signed: bool = False,
     batch_size: int = 64,
     lr: float = 1e-3,
     content_weight: float = 1e5,
@@ -136,12 +137,19 @@ def train(
     # =======================================================================
     # BRAILLE DATA GENERATOR
     # =======================================================================
-    num_dots = braille_dots  # 6 (classic: 2x3, 64 patterns) or 8 (computer: 2x4, 256 patterns)
-    num_patterns = 2 ** num_dots
-    BRAILLE_PATTERNS = []
-    for i in range(num_patterns):
-        dots = [(i >> bit) & 1 for bit in range(num_dots)]
-        BRAILLE_PATTERNS.append(dots)
+    num_dots = braille_dots
+    use_signed = braille_signed  # {-1, 0, +1}^n gives 3^n patterns vs 2^n
+    if use_signed:
+        # Generate all 3^n signed patterns
+        import itertools
+        BRAILLE_PATTERNS = list(itertools.product([-1, 0, 1], repeat=num_dots))
+        num_patterns = len(BRAILLE_PATTERNS)  # 3^n
+    else:
+        num_patterns = 2 ** num_dots
+        BRAILLE_PATTERNS = []
+        for i in range(num_patterns):
+            dots = [(i >> bit) & 1 for bit in range(num_dots)]
+            BRAILLE_PATTERNS.append(dots)
 
     # Dot grid layout: 2 columns, 3 rows (6-dot) or 4 rows (8-dot)
     num_rows = num_dots // 2
@@ -152,7 +160,8 @@ def train(
             dy = r - (num_rows - 1) / 2  # centered vertically
             DOT_GRID.append((dx, dy))
 
-    print(f"Braille config: {num_dots}-dot, {num_patterns} patterns, {num_rows} rows")
+    sign_label = "signed {-1,0,+1}" if use_signed else "binary {0,1}"
+    print(f"Braille config: {num_dots}-dot, {sign_label}, {num_patterns} patterns, {num_rows} rows")
 
     def render_braille_image(size=256, cells_per_side=4, jitter=True):
         """Generate an image with random braille characters arranged in a grid.
@@ -172,21 +181,31 @@ def train(
                 spacing = cell_w // 5
 
                 for dot_idx, (dx, dy) in enumerate(DOT_GRID):
-                    if pattern[dot_idx]:
-                        px = cx + dx * spacing
-                        py = cy + dy * spacing
+                    val = pattern[dot_idx]
+                    if val == 0:
+                        continue
 
-                        if jitter:
-                            px += random.randint(-2, 2)
-                            py += random.randint(-2, 2)
-                            r = dot_r_base + random.randint(-1, 2)
-                        else:
-                            r = dot_r_base
+                    px = cx + dx * spacing
+                    py = cy + dy * spacing
 
-                        # Vary dot darkness to simulate pressure
+                    if jitter:
+                        px += random.randint(-2, 2)
+                        py += random.randint(-2, 2)
+                        r = dot_r_base + random.randint(-1, 2)
+                    else:
+                        r = dot_r_base
+
+                    if val == 1 or val is True:
+                        # Asserted dot: filled circle
                         gray = random.randint(0, 60) if jitter else 0
                         color = (gray, gray, gray)
                         draw.ellipse([px-r, py-r, px+r, py+r], fill=color)
+                    elif val == -1:
+                        # Denied dot: X mark (red-ish)
+                        red = random.randint(160, 220) if jitter else 200
+                        xc = (red, 40, 40)
+                        draw.line([px-r, py-r, px+r, py+r], fill=xc, width=2)
+                        draw.line([px-r, py+r, px+r, py-r], fill=xc, width=2)
 
         return img
 
@@ -256,7 +275,7 @@ def train(
     # STAGE 1: BRAILLE PRE-TRAINING
     # =======================================================================
     print(f"\n{'='*60}")
-    print(f"STAGE 1: Braille pre-training ({braille_pretrain_steps} steps, {num_dots}-dot)")
+    print(f"STAGE 1: Braille pre-training ({braille_pretrain_steps} steps, {num_dots}-dot, {sign_label})")
     print(f"Teaching network that spatial dot patterns carry meaning...")
     print(f"{num_patterns} unique patterns, {num_rows}-row grid")
     print(f"{'='*60}\n")
@@ -398,6 +417,7 @@ def main(
     batch_size: int = 64,
     braille_pretrain_steps: int = 2000,
     braille_dots: int = 6,
+    braille_signed: bool = False,
 ):
     from pathlib import Path
 
@@ -407,11 +427,12 @@ def main(
         return
 
     if not style_name:
-        style_name = style_path.stem + f"_braille{braille_dots}"
+        sign_tag = "s" if braille_signed else ""
+        style_name = style_path.stem + f"_braille{braille_dots}{sign_tag}"
 
     print(f"Training BRAILLE-pretrained style transfer: {style_name}")
     print(f"Style image: {style_path}")
-    print(f"Braille: {braille_dots}-dot, {braille_pretrain_steps} steps")
+    print(f"Braille: {braille_dots}-dot, signed={braille_signed}, {braille_pretrain_steps} steps")
 
     style_bytes = style_path.read_bytes()
     model_bytes = train.remote(
@@ -421,6 +442,7 @@ def main(
         batch_size=batch_size,
         braille_pretrain_steps=braille_pretrain_steps,
         braille_dots=braille_dots,
+        braille_signed=braille_signed,
     )
 
     out_dir = Path("models")

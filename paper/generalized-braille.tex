@@ -1,0 +1,552 @@
+\documentclass[11pt,a4paper]{article}
+
+% ─── Packages ───
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{mathtools}
+\usepackage{bm}
+\usepackage{tikz}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\usepackage{cleveref}
+\usepackage[margin=1in]{geometry}
+\usepackage{enumitem}
+\usepackage[expansion=false]{microtype}
+\usepackage{xcolor}
+
+% ─── Theorem environments ───
+\newtheorem{definition}{Definition}
+\newtheorem{proposition}{Proposition}
+\newtheorem{theorem}{Theorem}
+\newtheorem{remark}{Remark}
+\newtheorem{corollary}{Corollary}
+
+% ─── Notation ───
+\newcommand{\B}{\mathcal{B}}
+\newcommand{\X}{\mathcal{X}}
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\Z}{\mathbb{Z}}
+\newcommand{\N}{\mathbb{N}}
+\newcommand{\bvec}{\bm{b}}
+\newcommand{\xvec}{\bm{x}}
+\newcommand{\yvec}{\bm{y}}
+\newcommand{\dvec}{\bm{d}}
+\newcommand{\phivec}{\bm{\phi}}
+
+\title{%
+  \textbf{Generalized Braille}:\\
+  From Tactile Code to Inspectable\\
+  Semantic Vector Space%
+}
+\author{
+  Ryan Barrett \\
+  Elevate Foundry \\
+  \texttt{ryan@elevatefoundry.com}
+}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+We formalize Braille as a family of structured codes over signed,
+extensible, finite-dimensional vector spaces.
+Standard 6-dot Braille is the instance $\B_6 = \{0,1\}^6$;
+8-dot computer Braille is $\B_8 = \{0,1\}^8$.
+We generalize to $n$-dot Braille over the ternary alphabet $\{-1,0,+1\}^n$,
+which introduces explicit negation, inhibition, and algebraic structure
+absent from binary encodings.
+We show that composing ternary cells into sequences yields a
+representational system with no fixed semantic-complexity ceiling,
+and that the limiting factor shifts from vocabulary size to the
+quality of the learned composition law.
+We further extend to unbounded-dot and infinity-dot Braille,
+connecting the framework to sparse feature spaces and
+neural latent representations.
+We describe a concrete implementation as a pre-training objective
+for convolutional style-transfer networks, and present curriculum
+experiments spanning Nemeth mathematical Braille, signed-dot patterns,
+and $n$-dot cells for $n \in \{6, 8, 10, 12\}$.
+\end{abstract}
+
+% =====================================================================
+\section{Introduction}
+\label{sec:intro}
+% =====================================================================
+
+Braille is conventionally understood as a tactile writing system:
+a fixed grid of raised dots encoding characters from a finite alphabet.
+Standard Braille uses a $2 \times 3$ grid of 6 dots, yielding $2^6 = 64$
+possible cell patterns.
+Computer Braille extends this to a $2 \times 4$ grid of 8 dots,
+yielding $2^8 = 256$ patterns.
+
+In both cases, a cell is a binary vector:
+\begin{equation}
+  \bvec = (b_1, \ldots, b_n), \qquad b_i \in \{0,1\},
+\end{equation}
+and the set of all cells is:
+\begin{equation}
+  |\B_n| = 2^n.
+\end{equation}
+
+We observe that this is an instance of a much richer family of
+structured codes.
+The natural generalization replaces the binary alphabet with a
+signed ternary alphabet, extends the dimensionality to arbitrary $n$,
+and considers composition of cells into sequences.
+The result is a framework that bridges tactile encoding,
+symbolic representation, and neural feature spaces.
+
+% =====================================================================
+\section{The \texorpdfstring{$n$}{n}-dot Braille Family}
+\label{sec:ndot}
+% =====================================================================
+
+\begin{definition}[$n$-dot binary Braille]
+  An $n$-dot binary Braille cell is a vector
+  $\bvec \in \{0,1\}^n$,
+  arranged in a $2 \times \lceil n/2 \rceil$ spatial grid.
+  The cell space has cardinality $2^n$.
+\end{definition}
+
+The standard instances form a nested hierarchy:
+\begin{equation}
+  \B_6 \subset \B_8 \subset \B_{10} \subset \cdots
+\end{equation}
+assuming the added dimensions preserve the semantics of earlier cells
+(i.e., dots 1--6 retain their standard meanings).
+
+\begin{table}[h]
+  \centering
+  \begin{tabular}{@{}lccc@{}}
+    \toprule
+    System & $n$ & Grid & $|\B_n|$ \\
+    \midrule
+    Standard Braille & 6 & $2 \times 3$ & 64 \\
+    Computer Braille & 8 & $2 \times 4$ & 256 \\
+    Extended Braille & 10 & $2 \times 5$ & 1{,}024 \\
+    12-dot Braille & 12 & $2 \times 6$ & 4{,}096 \\
+    \bottomrule
+  \end{tabular}
+  \caption{Binary $n$-dot Braille instances.}
+  \label{tab:ndot}
+\end{table}
+
+The spatial arrangement matters.
+A cell is not merely a bit string; it is a \emph{spatially grounded}
+bit string.
+The 2-column structure assigns each dot a position $(c, r)$ where
+$c \in \{0, 1\}$ (left/right) and $r \in \{0, \ldots, \lceil n/2 \rceil - 1\}$ (row).
+This spatial grounding is what distinguishes Braille from an
+arbitrary binary code and makes it learnable by spatial perception systems.
+
+% =====================================================================
+\section{Signed Braille: The Ternary Extension}
+\label{sec:signed}
+% =====================================================================
+
+\begin{definition}[Signed $n$-dot Braille]
+  A signed Braille cell is a vector
+  $\bvec \in \{-1, 0, +1\}^n$,
+  where:
+  \begin{align}
+    b_i = +1 &\quad \text{(asserted: the feature is present)}, \\
+    b_i = 0  &\quad \text{(unspecified: no statement about feature $i$)}, \\
+    b_i = -1 &\quad \text{(denied: the feature is explicitly absent)}.
+  \end{align}
+\end{definition}
+
+The cell space has cardinality $3^n$.
+For 8-dot signed Braille: $3^8 = 6{,}561$ patterns.
+For 10-dot: $3^{10} = 59{,}049$.
+
+\begin{remark}
+  Binary Braille cannot distinguish ``not present'' from
+  ``explicitly absent.''
+  The value $b_i = 0$ in $\{0,1\}^n$ conflates two distinct semantic states.
+  Signed Braille resolves this conflation.
+\end{remark}
+
+\subsection{Algebraic Properties}
+
+Signed cells admit natural algebraic operations.
+
+\paragraph{Negation.}
+For $\xvec = (x_1, \ldots, x_n)$:
+\begin{equation}
+  -\xvec = (-x_1, \ldots, -x_n).
+\end{equation}
+This corresponds to conceptual inversion: every asserted feature
+becomes denied, and vice versa.
+
+\paragraph{Cancellation.}
+\begin{equation}
+  (+d_i) + (-d_i) = 0.
+\end{equation}
+A denied dot cancels an asserted dot, yielding the unspecified state.
+
+\paragraph{Inner product.}
+\begin{equation}
+  \langle \xvec, \yvec \rangle = \sum_{i=1}^{n} x_i y_i.
+\end{equation}
+This measures alignment versus opposition:
+\begin{equation}
+  x_i y_i =
+  \begin{cases}
+    +1 & \text{agreement (both asserted or both denied)}, \\
+    0  & \text{irrelevant (at least one unspecified)}, \\
+    -1 & \text{contradiction (one asserted, one denied)}.
+  \end{cases}
+\end{equation}
+
+\paragraph{Signed similarity.}
+Two cells agree when their signs align and conflict when they oppose.
+This permits distance metrics, clustering, and analogy operations
+directly on the cell representation.
+
+% =====================================================================
+\section{Compositional Expressivity}
+\label{sec:composition}
+% =====================================================================
+
+A single $n$-dot ternary cell carries:
+\begin{equation}
+  \log_2(3^n) = n \log_2 3 \approx 1.585n \text{ bits}.
+\end{equation}
+
+For 10-dot ternary Braille, this is approximately 15.85 bits per cell.
+Substantial, but finite.
+
+The real expressivity arises from \emph{composition}.
+A sequence of $L$ cells:
+\begin{equation}
+  \xvec = (\xvec_1, \xvec_2, \ldots, \xvec_L),
+\end{equation}
+lives in the product space:
+\begin{equation}
+  |\X_L| = (3^n)^L = 3^{nL}.
+\end{equation}
+
+At only 32 cells of 10-dot ternary Braille:
+\begin{equation}
+  3^{320} \approx 10^{153}.
+\end{equation}
+
+But state counting misses the point.
+English has fewer than 100 primitive characters, yet:
+\begin{equation}
+  \text{small alphabet} + \text{composition}
+  \rightarrow
+  \text{Shakespeare, mathematics, Python}.
+\end{equation}
+
+Binary computers are even more extreme: $\{0,1\}$ suffices for
+essentially all digitally representable knowledge.
+
+\begin{theorem}[Expressivity hierarchy]
+  Ternary $n$-dot Braille with composition admits three levels
+  of expressivity:
+  \begin{enumerate}[label=\arabic*.]
+    \item \textbf{Atomic:} $3^n$ meanings (finite, fixed).
+    \item \textbf{Linguistic:} $(\{-1,0,+1\}^n)^*$ ---
+      infinitely many finite expressions encoding
+      sentences, trees, graphs, proofs, and programs.
+    \item \textbf{Computational:} With read, write, branch, bind,
+      and recursion operations plus unbounded working memory,
+      the system is Turing-complete.
+  \end{enumerate}
+\end{theorem}
+
+Therefore:
+\begin{equation}
+  \boxed{
+    \{-1,0,+1\}^n + \text{composition}
+    \rightarrow
+    \text{arbitrary finite symbolic structures}
+  }
+\end{equation}
+and:
+\begin{equation}
+  \boxed{
+    \{-1,0,+1\}^n + \text{composition} + \text{recursion} + \text{memory}
+    \rightarrow
+    \text{general computation}
+  }
+\end{equation}
+
+% =====================================================================
+\section{Factored Representations}
+\label{sec:factored}
+% =====================================================================
+
+The crucial design principle: meaning should \emph{factor through the dots}.
+
+An arbitrary lookup table assigns:
+\begin{equation}
+  \bvec \mapsto \text{symbol}.
+\end{equation}
+
+A semantic Braille system assigns:
+\begin{equation}
+  b_i \mapsto \text{primitive semantic feature}
+\end{equation}
+and therefore:
+\begin{equation}
+  \bvec \mapsto \text{composition of active features}.
+\end{equation}
+
+Increasing $n$ then adds \emph{semantic axes} rather than merely
+vocabulary capacity.
+
+The cell-level embedding becomes:
+\begin{equation}
+  \phi(\bvec) = \sum_{i=1}^{n} b_i \dvec_i
+    + \sum_{i < j} b_i b_j \dvec_{ij} + \cdots
+  \label{eq:factored}
+\end{equation}
+where $\dvec_i$ represents a primitive dot meaning and
+$\dvec_{ij}$ represents pairwise interactions.
+
+Sequence-level composition adds another layer:
+\begin{equation}
+  \Phi(\xvec_1, \ldots, \xvec_L) = F(\phi(\xvec_1), \ldots, \phi(\xvec_L)).
+\end{equation}
+
+The full hierarchy is:
+\begin{equation}
+  \text{trit}
+  \rightarrow \text{dot interactions}
+  \rightarrow \text{cell}
+  \rightarrow \text{cell interactions}
+  \rightarrow \text{structure}
+  \rightarrow \text{program/meaning}.
+\end{equation}
+
+\begin{remark}
+  Past some $n$, exhaustive learning of all $3^n$ cells becomes
+  impossible.
+  The system must learn the \emph{factorization of dots}
+  (Equation~\ref{eq:factored}), not every possible cell independently.
+  This is the regime where factored representations become essential.
+\end{remark}
+
+% =====================================================================
+\section{Extensions Beyond Ternary}
+\label{sec:extensions}
+% =====================================================================
+
+The ternary alphabet is not the endpoint.
+
+\begin{definition}[Generalized dot algebra]
+  A dot may take values in an arbitrary domain $D_i$:
+  \begin{align}
+    b_i \in \Z       &\quad \text{(integer: count, multiplicity)}, \\
+    b_i \in \R       &\quad \text{(real: activation, confidence)}, \\
+    b_i \in \mathbb{C} &\quad \text{(complex: magnitude + phase)}, \\
+    b_i \in [0,1]    &\quad \text{(probabilistic: belief)}, \\
+    b_i \in [l_i, u_i] &\quad \text{(interval: uncertainty bounds)}.
+  \end{align}
+\end{definition}
+
+The most coherent hierarchy is:
+\begin{align}
+  \text{ordinary Braille}   &= \{0,1\}^n, \\
+  \text{signed Braille}     &= \{-1,0,+1\}^n, \\
+  \text{weighted Braille}   &= \R^n, \\
+  \text{infinity-dot Braille} &= \R^{\N} \text{ with sparse or computable support}.
+\end{align}
+
+This converges toward a learned latent space, but with a critical
+difference: \textbf{the dimensions remain externally addressable
+and potentially inspectable}.
+
+A neural vector is usually $\bm{z} \in \R^d$ with opaque coordinates.
+Generalized Braille is $\bvec \in \R^d$ with spatially or semantically
+grounded coordinates.
+
+\begin{equation}
+  \boxed{
+    \text{Generalized Braille}
+    = \text{an inspectable, extensible, signed semantic vector space}
+  }
+\end{equation}
+
+% =====================================================================
+\section{Infinity-dot Braille}
+\label{sec:infinity}
+% =====================================================================
+
+\subsection{Unbounded Braille}
+
+The cell may contain any finite number of dimensions, with no fixed
+maximum:
+\begin{equation}
+  \bvec \in \bigcup_{n=1}^{\infty} \{0,1\}^n.
+\end{equation}
+
+This is operationally sensible.
+A representation can expand when it needs new semantic dimensions.
+It resembles a dynamically extensible schema:
+\begin{equation}
+  \bvec = (b_1, \ldots, b_n), \qquad n \text{ chosen per expression}.
+\end{equation}
+
+This is the useful form of ``infinity-dot Braille.''
+
+\subsection{Actually Infinite Braille}
+
+A cell is an infinite binary sequence:
+\begin{equation}
+  \bvec \in \{0,1\}^{\N}.
+\end{equation}
+
+The complete space is uncountable:
+\begin{equation}
+  \left|\{0,1\}^{\N}\right| = 2^{\aleph_0}.
+\end{equation}
+
+But computation can only access finite prefixes.
+Practical infinity-dot Braille must impose one of:
+\begin{itemize}
+  \item Finite support: $\sum_i b_i < \infty$.
+  \item Computable sequence: $b_i = f(i)$ for computable $f$.
+  \item Lazy representation: $b_{1:k}$ generated on demand.
+\end{itemize}
+
+A sparse infinite cell is especially natural:
+\begin{equation}
+  \bvec: \N \rightarrow \{0,1\}, \qquad
+  |\{i : b_i = 1\}| < \infty.
+\end{equation}
+
+This gives an unlimited namespace while keeping every actual
+expression finite:
+\begin{equation}
+  \bvec \equiv \{i_1, i_2, \ldots, i_k\}.
+\end{equation}
+
+\begin{equation}
+  \boxed{
+    \text{Infinity-dot Braille is a semantic coordinate system.}
+  }
+\end{equation}
+
+% =====================================================================
+\section{Implementation: Pre-training Objective}
+\label{sec:implementation}
+% =====================================================================
+
+We implement generalized Braille as a pre-training objective for
+convolutional style-transfer networks.
+
+\subsection{Synthetic Data Generation}
+
+For $n$-dot signed Braille with $n$ configurable:
+\begin{enumerate}
+  \item Generate all $3^n$ (or $2^n$) possible cell patterns.
+  \item Render cells as images on a $2 \times \lceil n/2 \rceil$ spatial grid.
+  \item Asserted dots ($+1$) are rendered as filled circles.
+  \item Denied dots ($-1$) are rendered as X marks.
+  \item Absent dots ($0$) produce no mark.
+  \item Add position jitter, size variation, and pressure simulation
+    to approximate hand-drawn appearance.
+\end{enumerate}
+
+\subsection{Network Architecture}
+
+The pre-training target is a convolutional encoder-decoder
+(TransformerNet) trained with perceptual loss via VGG-16 features.
+The hypothesis: teaching the network that spatial dot patterns carry
+structured, compositionally meaningful information produces better
+spatial preservation during style transfer.
+
+\subsection{Training Protocol}
+
+\begin{enumerate}
+  \item \textbf{Stage 1 (Braille):}
+    Pre-train on synthetic signed $n$-dot Braille images.
+    Content weight is doubled to emphasize spatial fidelity.
+  \item \textbf{Stage 2 (Style transfer):}
+    Fine-tune on natural images (COCO) with standard style loss.
+\end{enumerate}
+
+\subsection{Curriculum}
+
+The drawing curriculum includes:
+\begin{itemize}
+  \item 8-dot lowercase and uppercase alphabet
+    (dot 7 as capital indicator).
+  \item Nemeth mathematical Braille: integrals, summations,
+    Greek letters, the quadratic formula, Euler's identity,
+    the Pythagorean theorem, and the Basel problem.
+  \item Generalized $n$-dot hierarchy:
+    $\B_6 \subset \B_8 \subset \B_{10}$ rendered side-by-side.
+  \item Negative-dot demonstrations:
+    asserted, denied, and absent in the same cell.
+  \item 12-dot cells ($2 \times 6$ grid, $4{,}096$ binary patterns).
+  \item Algebraic cancellation: $(+d) + (-d) = 0$.
+\end{itemize}
+
+% =====================================================================
+\section{Conclusion}
+\label{sec:conclusion}
+% =====================================================================
+
+We have shown that Braille, properly generalized, is not a fixed
+alphabet but a \emph{semantic vector space} with the following
+properties:
+
+\begin{enumerate}
+  \item \textbf{Spatial grounding:}
+    Dot positions are physically meaningful, not arbitrary indices.
+  \item \textbf{Signed semantics:}
+    The ternary alphabet $\{-1, 0, +1\}$ distinguishes
+    assertion, absence, and denial.
+  \item \textbf{Compositionality:}
+    Cell sequences can encode arbitrary finite structures.
+  \item \textbf{Extensibility:}
+    Adding dimensions adds semantic axes, not just capacity.
+  \item \textbf{Inspectability:}
+    Unlike opaque neural embeddings, dot coordinates are
+    externally addressable.
+  \item \textbf{Algebraic structure:}
+    Negation, cancellation, and inner products operate
+    directly on the representation.
+\end{enumerate}
+
+The key results:
+
+\medskip
+
+\begin{center}
+\begin{tabular}{@{}ll@{}}
+  \toprule
+  Finite $n$-dot Braille & is a vocabulary \\
+  Unbounded-dot Braille & is a growing ontology \\
+  Infinity-dot Braille & is a semantic basis \\
+  Negative-dot Braille & adds contradiction and inhibition \\
+  \bottomrule
+\end{tabular}
+\end{center}
+
+\medskip
+
+A fixed ternary $n$-dot cell is finite.
+But an arbitrarily composable ternary Braille language has
+\emph{no fixed semantic-complexity ceiling}.
+The limiting factor is not the number of dots.
+It is the quality of the learned composition law.
+
+\begin{equation}
+  \boxed{
+    \text{Generalized Braille}
+    = \text{an inspectable, extensible, signed semantic vector space.}
+  }
+\end{equation}
+
+\bibliographystyle{plain}
+% \bibliography{references}
+
+\end{document}
