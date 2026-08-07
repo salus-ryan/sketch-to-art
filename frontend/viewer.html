@@ -14,11 +14,162 @@
             background: #333; z-index: 99;
         }
         .dot.ok { background: #22c55e; box-shadow: 0 0 6px #22c55e; }
+
+        /* Camera PiP */
+        #camWrap {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            width: 320px;
+            z-index: 100;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 24px rgba(0,0,0,0.6);
+            border: 2px solid rgba(255,255,255,0.15);
+            cursor: grab;
+            user-select: none;
+            transition: opacity 0.3s, transform 0.3s;
+        }
+        #camWrap.hidden { opacity: 0; pointer-events: none; transform: scale(0.8); }
+        #camWrap.dragging { cursor: grabbing; transition: none; }
+        #camVideo {
+            display: block;
+            width: 100%;
+            background: #111;
+            border-radius: 12px;
+        }
+        #camLabel {
+            position: absolute;
+            top: 8px; left: 10px;
+            background: rgba(0,0,0,0.55);
+            color: #fff;
+            font: 600 11px/1 system-ui, sans-serif;
+            padding: 4px 8px;
+            border-radius: 6px;
+            letter-spacing: 0.5px;
+        }
+        #camLabel .rec {
+            display: inline-block;
+            width: 7px; height: 7px;
+            background: #ef4444;
+            border-radius: 50%;
+            margin-right: 5px;
+            animation: blink 1.2s infinite;
+            vertical-align: middle;
+        }
+        @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+        .cam-controls {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            z-index: 101;
+            display: flex;
+            gap: 8px;
+        }
+        .cam-btn {
+            width: 40px; height: 40px;
+            border-radius: 50%;
+            border: none;
+            background: rgba(255,255,255,0.12);
+            color: #ccc;
+            font-size: 18px;
+            cursor: pointer;
+            backdrop-filter: blur(8px);
+            transition: background 0.2s;
+        }
+        .cam-btn:hover { background: rgba(255,255,255,0.25); }
+        .cam-btn.active { background: rgba(34,197,94,0.3); color: #22c55e; }
+        .cam-btn.recording { background: rgba(239,68,68,0.4); color: #ef4444; animation: blink 1.2s infinite; }
+
+        #camSelect {
+            position: fixed;
+            bottom: 68px;
+            left: 20px;
+            z-index: 101;
+            background: rgba(0,0,0,0.7);
+            color: #ccc;
+            border: 1px solid rgba(255,255,255,0.15);
+            border-radius: 8px;
+            padding: 6px 10px;
+            font: 12px system-ui, sans-serif;
+            backdrop-filter: blur(8px);
+            display: none;
+        }
+        #camSelect.show { display: block; }
+
+        /* Resize handle */
+        #camResize {
+            position: absolute;
+            top: 0; left: 0;
+            width: 20px; height: 20px;
+            cursor: nw-resize;
+        }
+        /* GDPR Consent Modal */
+        #consentOverlay {
+            position: fixed; inset: 0;
+            background: rgba(0,0,0,0.92);
+            z-index: 1000;
+            display: flex; align-items: center; justify-content: center;
+        }
+        #consentOverlay.hidden { display: none; }
+        #consentBox {
+            background: #1a1a1a; border: 1px solid #333;
+            border-radius: 16px; padding: 32px 36px;
+            max-width: 520px; width: 90%;
+        }
+        #consentBox h2 { font: 700 20px/1.3 system-ui, sans-serif; color: #fff; margin-bottom: 16px; }
+        #consentBox p { font: 400 13px/1.6 system-ui, sans-serif; color: #aaa; margin-bottom: 12px; }
+        #consentBox ul { margin: 0 0 16px 20px; font: 400 13px/1.7 system-ui, sans-serif; color: #aaa; }
+        #consentBox ul li { margin-bottom: 4px; }
+        #consentBox .hl { color: #e5e5e5; font-weight: 600; }
+        .consent-actions { display: flex; gap: 12px; margin-top: 20px; }
+        .consent-actions button {
+            flex: 1; padding: 12px; border-radius: 10px; border: none;
+            font: 600 14px/1 system-ui, sans-serif; cursor: pointer;
+        }
+        #consentAccept { background: #22c55e; color: #000; }
+        #consentAccept:hover { background: #16a34a; }
+        #consentDecline { background: rgba(255,255,255,0.08); color: #888; border: 1px solid #333; }
+        .consent-footer { margin-top: 14px; font: 400 11px/1.5 system-ui, sans-serif; color: #555; }
     </style>
 </head>
 <body>
-    <canvas id="c"></canvas>
+    <!-- GDPR Consent Modal -->
+    <div id="consentOverlay">
+        <div id="consentBox">
+            <h2>Before we begin</h2>
+            <p>This viewer uses your <span class="hl">camera</span> and <span class="hl">screen recording</span> to create training data for an AI drawing model. Here’s what we collect:</p>
+            <ul>
+                <li><span class="hl">Camera feed</span> — recorded as part of each drawing session video</li>
+                <li><span class="hl">Operator snapshot</span> — a frame captured at recording start to identify who is at the workstation</li>
+                <li><span class="hl">Drawing strokes</span> — coordinates, pressure, and timing</li>
+                <li><span class="hl">Session recordings</span> — composite video uploaded to Modal for AI training</li>
+            </ul>
+            <p>All data is stored locally and on Modal cloud infrastructure. You can request deletion at any time.</p>
+            <div class="consent-actions">
+                <button id="consentDecline">Decline</button>
+                <button id="consentAccept">I consent</button>
+            </div>
+            <div class="consent-footer">GDPR Article 6(1)(a) · SOC 2 Type II · Data retained for training purposes only</div>
+        </div>
+    </div>
+
+    <canvas id="c" style="display:none"></canvas>
     <div class="dot" id="dot"></div>
+
+    <!-- Camera PiP -->
+    <div id="camWrap" style="display:none">
+        <video id="camVideo" autoplay playsinline muted></video>
+        <div id="camLabel"><span class="rec"></span>LIVE</div>
+        <div id="camResize"></div>
+    </div>
+    <div class="cam-controls" style="display:none">
+        <button class="cam-btn active" id="camToggle" title="Toggle camera">📷</button>
+        <button class="cam-btn" id="camSwitch" title="Switch camera">🔄</button>
+        <button class="cam-btn" id="recBtn" title="Toggle recording">⏺</button>
+    </div>
+    <select id="camSelect"></select>
 
     <script>
     (function() {
@@ -72,10 +223,12 @@
                     for (const s of data.data) {
                         drawStroke(s.x1, s.y1, s.x2, s.y2, s.w);
                     }
+                    onDrawingActivity();
                 }
 
                 else if (data.type === 'stroke') {
                     drawStroke(data.x1, data.y1, data.x2, data.y2, data.size);
+                    onDrawingActivity();
                 }
 
                 else if (data.type === 'sync') {
@@ -96,6 +249,353 @@
         }
 
         connect();
+
+        // --- Camera PiP ---
+        const camWrap = document.getElementById('camWrap');
+        const camVideo = document.getElementById('camVideo');
+        const camToggle = document.getElementById('camToggle');
+        const camSwitch = document.getElementById('camSwitch');
+        const camSelect = document.getElementById('camSelect');
+        const camResize = document.getElementById('camResize');
+        let camStream = null;
+        let camVisible = true;
+
+        async function startCamera(deviceId) {
+            // Camera API requires a secure context (HTTPS or localhost)
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                console.warn('Camera unavailable: page must be served over HTTPS or accessed via localhost.');
+                camWrap.classList.add('hidden');
+                camVisible = false;
+                return;
+            }
+            // Stop previous stream
+            if (camStream) {
+                camStream.getTracks().forEach(t => t.stop());
+            }
+            const constraints = {
+                video: deviceId
+                    ? { deviceId: { exact: deviceId }, width: { ideal: 1280 }, height: { ideal: 720 } }
+                    : { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } },
+                audio: false
+            };
+            try {
+                camStream = await navigator.mediaDevices.getUserMedia(constraints);
+                camVideo.srcObject = camStream;
+                camWrap.classList.remove('hidden');
+                camToggle.classList.add('active');
+                camVisible = true;
+                await populateCameras();
+            } catch (err) {
+                console.warn('Camera access denied or unavailable:', err);
+                camWrap.classList.add('hidden');
+                camVisible = false;
+            }
+        }
+
+        async function populateCameras() {
+            const devices = await navigator.mediaDevices.enumerateDevices();
+            const cams = devices.filter(d => d.kind === 'videoinput');
+            camSelect.innerHTML = '';
+            cams.forEach((cam, i) => {
+                const opt = document.createElement('option');
+                opt.value = cam.deviceId;
+                opt.textContent = cam.label || `Camera ${i + 1}`;
+                if (camStream) {
+                    const activeTrack = camStream.getVideoTracks()[0];
+                    if (activeTrack && activeTrack.getSettings().deviceId === cam.deviceId) {
+                        opt.selected = true;
+                    }
+                }
+                camSelect.appendChild(opt);
+            });
+        }
+
+        // Camera starts only after GDPR consent
+        // startCamera() called from consent handler
+
+        camToggle.addEventListener('click', () => {
+            if (camVisible) {
+                camWrap.classList.add('hidden');
+                camToggle.classList.remove('active');
+                camVisible = false;
+                if (camStream) camStream.getTracks().forEach(t => t.stop());
+                camStream = null;
+            } else {
+                startCamera(camSelect.value || undefined);
+            }
+        });
+
+        camSwitch.addEventListener('click', () => {
+            camSelect.classList.toggle('show');
+        });
+
+        camSelect.addEventListener('change', () => {
+            startCamera(camSelect.value);
+            camSelect.classList.remove('show');
+        });
+
+        // --- Drag PiP ---
+        let dragX = 0, dragY = 0, dragStartX = 0, dragStartY = 0, isDragging = false;
+        camWrap.addEventListener('pointerdown', (e) => {
+            if (e.target === camResize) return;
+            isDragging = true;
+            camWrap.classList.add('dragging');
+            dragStartX = e.clientX - dragX;
+            dragStartY = e.clientY - dragY;
+            camWrap.setPointerCapture(e.pointerId);
+        });
+        camWrap.addEventListener('pointermove', (e) => {
+            if (!isDragging) return;
+            dragX = e.clientX - dragStartX;
+            dragY = e.clientY - dragStartY;
+            camWrap.style.transform = `translate(${dragX}px, ${dragY}px)`;
+        });
+        camWrap.addEventListener('pointerup', () => {
+            isDragging = false;
+            camWrap.classList.remove('dragging');
+        });
+
+        // --- Screen Recording (canvas + camera composite) ---
+        const recBtn = document.getElementById('recBtn');
+        const camLabel = document.getElementById('camLabel');
+        let mediaRecorder = null;
+        let recordedChunks = [];
+        let recording = false;
+        let idleTimer = null;
+        const IDLE_TIMEOUT = 5000; // auto-stop after 5s of no strokes
+
+        // Compositing canvas: merges drawing canvas + camera into one stream
+        const compCanvas = document.createElement('canvas');
+        const compCtx = compCanvas.getContext('2d');
+        let compRAF = null;
+
+        function startCompositing() {
+            // Match viewport size for recording
+            compCanvas.width = window.innerWidth;
+            compCanvas.height = window.innerHeight;
+
+            function compositeFrame() {
+                const cw = compCanvas.width;
+                const ch = compCanvas.height;
+
+                // Black background
+                compCtx.fillStyle = '#000';
+                compCtx.fillRect(0, 0, cw, ch);
+
+                // Draw the main canvas (centered, same as the CSS layout)
+                const s = Math.min(cw / SIZE, ch / SIZE);
+                const dx = (cw - SIZE * s) / 2;
+                const dy = (ch - SIZE * s) / 2;
+                compCtx.drawImage(canvas, dx, dy, SIZE * s, SIZE * s);
+
+                // Draw camera PiP overlay (bottom-right)
+                if (camVideo.srcObject && camVideo.readyState >= 2) {
+                    const pipW = camWrap.offsetWidth;
+                    const pipH = camVideo.videoHeight * (pipW / camVideo.videoWidth) || pipW * 0.5625;
+                    const pipX = cw - pipW - 20;
+                    const pipY = ch - pipH - 20;
+                    // Rounded rect clip
+                    compCtx.save();
+                    compCtx.beginPath();
+                    const r = 12;
+                    compCtx.moveTo(pipX + r, pipY);
+                    compCtx.arcTo(pipX + pipW, pipY, pipX + pipW, pipY + pipH, r);
+                    compCtx.arcTo(pipX + pipW, pipY + pipH, pipX, pipY + pipH, r);
+                    compCtx.arcTo(pipX, pipY + pipH, pipX, pipY, r);
+                    compCtx.arcTo(pipX, pipY, pipX + pipW, pipY, r);
+                    compCtx.closePath();
+                    compCtx.clip();
+                    compCtx.drawImage(camVideo, pipX, pipY, pipW, pipH);
+                    compCtx.restore();
+                    // PiP border
+                    compCtx.strokeStyle = 'rgba(255,255,255,0.15)';
+                    compCtx.lineWidth = 2;
+                    compCtx.beginPath();
+                    compCtx.moveTo(pipX + r, pipY);
+                    compCtx.arcTo(pipX + pipW, pipY, pipX + pipW, pipY + pipH, r);
+                    compCtx.arcTo(pipX + pipW, pipY + pipH, pipX, pipY + pipH, r);
+                    compCtx.arcTo(pipX, pipY + pipH, pipX, pipY, r);
+                    compCtx.arcTo(pipX, pipY, pipX + pipW, pipY, r);
+                    compCtx.closePath();
+                    compCtx.stroke();
+                }
+
+                compRAF = requestAnimationFrame(compositeFrame);
+            }
+            compositeFrame();
+        }
+
+        function stopCompositing() {
+            if (compRAF) { cancelAnimationFrame(compRAF); compRAF = null; }
+        }
+
+        function startRecording() {
+            if (recording) return;
+            startCompositing();
+
+            const stream = compCanvas.captureStream(30);
+            recordedChunks = [];
+
+            const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
+                ? 'video/webm;codecs=vp9'
+                : 'video/webm';
+            mediaRecorder = new MediaRecorder(stream, { mimeType });
+
+            mediaRecorder.ondataavailable = (e) => {
+                if (e.data.size > 0) recordedChunks.push(e.data);
+            };
+            mediaRecorder.onstop = async () => {
+                stopCompositing();
+                const blob = new Blob(recordedChunks, { type: mimeType });
+                // Upload to server for AI training consumption
+                const formData = new FormData();
+                formData.append('file', blob, 'recording.webm');
+                try {
+                    const resp = await fetch('/api/recordings', { method: 'POST', body: formData });
+                    const result = await resp.json();
+                    console.log(`Recording saved to server: ${result.filename} (${(result.size_bytes / 1024 / 1024).toFixed(1)} MB)`);
+                } catch (err) {
+                    console.error('Failed to upload recording, saving locally instead:', err);
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `sketch-${new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)}.webm`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                }
+            };
+
+            mediaRecorder.start(1000); // collect data every 1s
+            recording = true;
+            recBtn.classList.add('recording');
+            camLabel.innerHTML = '<span class="rec"></span>REC';
+            resetIdleTimer();
+            console.log('Recording started');
+
+            // Capture operator snapshot from camera for SOC 2 audit
+            captureOperatorSnapshot();
+        }
+
+        function stopRecording() {
+            if (!recording) return;
+            mediaRecorder.stop();
+            recording = false;
+            recBtn.classList.remove('recording');
+            camLabel.innerHTML = '<span class="rec"></span>LIVE';
+            clearTimeout(idleTimer);
+            console.log('Recording stopped');
+        }
+
+        function resetIdleTimer() {
+            clearTimeout(idleTimer);
+            idleTimer = setTimeout(() => {
+                if (recording) {
+                    console.log('Auto-stopping recording (idle timeout)');
+                    stopRecording();
+                }
+            }, IDLE_TIMEOUT);
+        }
+
+        // Called when a stroke/drawing event arrives
+        function onDrawingActivity() {
+            if (!recording && camStream) {
+                startRecording();
+            }
+            if (recording) {
+                resetIdleTimer();
+            }
+        }
+
+        recBtn.addEventListener('click', () => {
+            if (recording) {
+                stopRecording();
+            } else {
+                startRecording();
+            }
+        });
+
+        // --- Operator Identity Snapshot (SOC 2 Type II) ---
+        async function captureOperatorSnapshot() {
+            if (!camVideo.srcObject || camVideo.readyState < 2) return;
+            try {
+                const snapCanvas = document.createElement('canvas');
+                snapCanvas.width = camVideo.videoWidth;
+                snapCanvas.height = camVideo.videoHeight;
+                const snapCtx = snapCanvas.getContext('2d');
+                snapCtx.drawImage(camVideo, 0, 0);
+                const blob = await new Promise(r => snapCanvas.toBlob(r, 'image/jpeg', 0.85));
+                const formData = new FormData();
+                formData.append('snapshot', blob, 'operator.jpg');
+                const resp = await fetch('/api/operator-snapshot', { method: 'POST', body: formData });
+                const result = await resp.json();
+                console.log(`Operator snapshot: ${result.operator} (confidence: ${result.confidence})`);
+            } catch (err) {
+                console.warn('Operator snapshot failed:', err);
+            }
+        }
+
+        // --- Resize PiP ---
+        let resizing = false, resizeStartW = 320, resizeStartX = 0;
+        camResize.addEventListener('pointerdown', (e) => {
+            e.stopPropagation();
+            resizing = true;
+            resizeStartW = camWrap.offsetWidth;
+            resizeStartX = e.clientX;
+            camResize.setPointerCapture(e.pointerId);
+        });
+        camResize.addEventListener('pointermove', (e) => {
+            if (!resizing) return;
+            // Dragging top-left corner: moving left = bigger
+            const delta = resizeStartX - e.clientX;
+            const newW = Math.max(160, Math.min(800, resizeStartW + delta));
+            camWrap.style.width = newW + 'px';
+        });
+        camResize.addEventListener('pointerup', () => { resizing = false; });
+
+        // --- GDPR Consent ---
+        const consentOverlay = document.getElementById('consentOverlay');
+
+        document.getElementById('consentAccept').addEventListener('click', async () => {
+            try {
+                await fetch('/api/consent', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        action: 'granted',
+                        scope: ['camera', 'screen_recording', 'operator_snapshot', 'stroke_data', 'session_recordings'],
+                        gdpr_article: '6(1)(a)',
+                        page: 'viewer',
+                        user_agent: navigator.userAgent,
+                    }),
+                });
+            } catch (err) { console.warn('Consent log failed:', err); }
+
+            consentOverlay.classList.add('hidden');
+            canvas.style.display = '';
+            camWrap.style.display = '';
+            document.querySelector('.cam-controls').style.display = '';
+            fit();
+            startCamera();
+            console.log('GDPR consent granted');
+        });
+
+        document.getElementById('consentDecline').addEventListener('click', async () => {
+            try {
+                await fetch('/api/consent', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        action: 'declined',
+                        scope: ['camera', 'screen_recording', 'operator_snapshot', 'stroke_data', 'session_recordings'],
+                        gdpr_article: '6(1)(a)',
+                        page: 'viewer',
+                        user_agent: navigator.userAgent,
+                    }),
+                });
+            } catch (err) {}
+            document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#888;font:16px system-ui">Consent declined. Close this tab or refresh to try again.</div>';
+            console.log('GDPR consent declined');
+        });
     })();
     </script>
 </body>

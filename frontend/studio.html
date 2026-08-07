@@ -1,0 +1,748 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Studio</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body { background: #0a0a0a; height: 100%; width: 100%; overflow: hidden; font-family: system-ui, -apple-system, sans-serif; color: #e5e5e5; }
+
+        #studio {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            grid-template-rows: 1fr auto;
+            height: 100%;
+            gap: 1px;
+            background: #1a1a1a;
+        }
+
+        .pane {
+            position: relative;
+            background: #0a0a0a;
+            overflow: hidden;
+        }
+
+        .pane-label {
+            position: absolute;
+            top: 10px; left: 12px;
+            font: 600 11px/1 system-ui, sans-serif;
+            color: rgba(255,255,255,0.4);
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            z-index: 10;
+        }
+
+        .pane canvas {
+            position: absolute;
+            transform-origin: 0 0;
+        }
+
+        /* Drawing pane */
+        #drawPane canvas { cursor: crosshair; }
+
+        /* Status dots */
+        .dot {
+            position: absolute;
+            top: 10px; right: 12px;
+            width: 8px; height: 8px;
+            border-radius: 50%;
+            background: #333;
+            z-index: 10;
+        }
+        .dot.ok { background: #22c55e; box-shadow: 0 0 6px #22c55e; }
+
+        /* Toolbar between canvases */
+        .toolbar {
+            position: absolute;
+            bottom: 12px; left: 50%; transform: translateX(-50%);
+            display: flex; gap: 6px;
+            z-index: 10;
+        }
+        .toolbar button {
+            width: 36px; height: 36px;
+            border-radius: 50%;
+            border: none;
+            background: rgba(255,255,255,0.08);
+            color: #aaa;
+            font-size: 15px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .toolbar button:hover { background: rgba(255,255,255,0.18); }
+        .toolbar button:active { background: rgba(255,255,255,0.25); }
+
+        /* Camera PiP in AI pane */
+        #camWrap {
+            position: absolute;
+            bottom: 12px; right: 12px;
+            width: 180px;
+            z-index: 20;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.5);
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        #camWrap.hidden { display: none; }
+        #camVideo { display: block; width: 100%; background: #111; }
+        #camLabel {
+            position: absolute;
+            top: 6px; left: 8px;
+            background: rgba(0,0,0,0.55);
+            color: #fff;
+            font: 600 10px/1 system-ui, sans-serif;
+            padding: 3px 6px;
+            border-radius: 4px;
+            letter-spacing: 0.5px;
+        }
+        #camLabel .rec {
+            display: inline-block;
+            width: 6px; height: 6px;
+            background: #ef4444;
+            border-radius: 50%;
+            margin-right: 4px;
+            animation: blink 1.2s infinite;
+            vertical-align: middle;
+        }
+        @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+        /* Chat bar */
+        #chatBar {
+            grid-column: 1 / -1;
+            background: #111;
+            border-top: 1px solid #222;
+            display: flex;
+            align-items: center;
+            padding: 8px 16px;
+            gap: 10px;
+        }
+        #chatInput {
+            flex: 1;
+            background: #1a1a1a;
+            border: 1px solid #333;
+            border-radius: 8px;
+            padding: 10px 14px;
+            color: #e5e5e5;
+            font: 14px/1.4 system-ui, sans-serif;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        #chatInput:focus { border-color: #555; }
+        #chatInput::placeholder { color: #555; }
+        #chatSend {
+            padding: 8px 14px;
+            background: rgba(255,255,255,0.08);
+            color: #aaa;
+            border: 1px solid #333;
+            border-radius: 8px;
+            font: 600 15px/1 system-ui, sans-serif;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        #chatSend:hover { background: rgba(255,255,255,0.15); }
+        #strokeCount {
+            font: 600 12px/1 monospace;
+            color: #555;
+            white-space: nowrap;
+        }
+        #chatLog {
+            max-width: 400px;
+            font: 12px/1.4 monospace;
+            color: #888;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        /* GDPR Consent Modal */
+        #consentOverlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.92);
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        #consentOverlay.hidden { display: none; }
+        #consentBox {
+            background: #1a1a1a;
+            border: 1px solid #333;
+            border-radius: 16px;
+            padding: 32px 36px;
+            max-width: 520px;
+            width: 90%;
+        }
+        #consentBox h2 {
+            font: 700 20px/1.3 system-ui, sans-serif;
+            color: #fff;
+            margin-bottom: 16px;
+        }
+        #consentBox p {
+            font: 400 13px/1.6 system-ui, sans-serif;
+            color: #aaa;
+            margin-bottom: 12px;
+        }
+        #consentBox ul {
+            margin: 0 0 16px 20px;
+            font: 400 13px/1.7 system-ui, sans-serif;
+            color: #aaa;
+        }
+        #consentBox ul li { margin-bottom: 4px; }
+        #consentBox .highlight { color: #e5e5e5; font-weight: 600; }
+        .consent-actions {
+            display: flex;
+            gap: 12px;
+            margin-top: 20px;
+        }
+        .consent-actions button {
+            flex: 1;
+            padding: 12px;
+            border-radius: 10px;
+            border: none;
+            font: 600 14px/1 system-ui, sans-serif;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        #consentAccept {
+            background: #22c55e;
+            color: #000;
+        }
+        #consentAccept:hover { background: #16a34a; }
+        #consentDecline {
+            background: rgba(255,255,255,0.08);
+            color: #888;
+            border: 1px solid #333;
+        }
+        #consentDecline:hover { background: rgba(255,255,255,0.12); }
+        .consent-footer {
+            margin-top: 14px;
+            font: 400 11px/1.5 system-ui, sans-serif;
+            color: #555;
+        }
+    </style>
+</head>
+<body>
+    <!-- GDPR Consent Modal -->
+    <div id="consentOverlay">
+        <div id="consentBox">
+            <h2>Before we begin</h2>
+            <p>This studio uses your <span class="highlight">camera</span> and <span class="highlight">screen recording</span> to create training data for an AI drawing model. Here's exactly what we collect:</p>
+            <ul>
+                <li><span class="highlight">Camera feed</span> — recorded as part of each drawing session video</li>
+                <li><span class="highlight">Operator snapshot</span> — a single frame captured at the start of each recording to identify who is at the workstation</li>
+                <li><span class="highlight">Drawing strokes</span> — coordinates, pressure, and timing of everything you draw</li>
+                <li><span class="highlight">Session recordings</span> — composite video of your canvas + camera, uploaded to Modal for AI training</li>
+                <li><span class="highlight">Labels</span> — any text labels you provide for your drawings</li>
+            </ul>
+            <p>All data is stored locally and on Modal cloud infrastructure. Recordings and snapshots are retained for model training. You can request deletion at any time.</p>
+            <div class="consent-actions">
+                <button id="consentDecline">Decline</button>
+                <button id="consentAccept">I consent</button>
+            </div>
+            <div class="consent-footer">
+                GDPR Article 6(1)(a) · SOC 2 Type II · Data retained for training purposes only
+            </div>
+        </div>
+    </div>
+
+    <div id="studio" style="display:none">
+        <!-- Left: Your drawing canvas -->
+        <div class="pane" id="drawPane">
+            <span class="pane-label" id="youLabel">You</span>
+            <div class="dot" id="drawDot"></div>
+            <canvas id="drawCanvas"></canvas>
+            <div class="toolbar">
+                <button id="undoBtn" title="Undo">↩</button>
+                <button id="clearBtn" title="Clear">✕</button>
+            </div>
+        </div>
+
+        <!-- Right: AI / Viewer canvas -->
+        <div class="pane" id="aiPane">
+            <span class="pane-label" id="aiLabel">AI</span>
+            <div class="dot" id="aiDot"></div>
+            <canvas id="aiCanvas"></canvas>
+            <div id="camWrap">
+                <video id="camVideo" autoplay playsinline muted></video>
+                <div id="camLabel"><span class="rec"></span>LIVE</div>
+            </div>
+        </div>
+
+        <!-- Command bar -->
+        <div id="chatBar">
+            <span id="strokeCount">0 strokes</span>
+            <span id="chatLog"></span>
+            <input type="text" id="chatInput" placeholder='Label what you drew... (e.g. "cat", "house")' />
+            <button id="chatSend" title="Send">↵</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        const SIZE = 1024;
+
+        // ─── Drawing Canvas (left pane) ───
+        const drawCanvas = document.getElementById('drawCanvas');
+        const drawCtx = drawCanvas.getContext('2d');
+        const drawDot = document.getElementById('drawDot');
+        const drawPane = document.getElementById('drawPane');
+
+        drawCanvas.width = SIZE;
+        drawCanvas.height = SIZE;
+        drawCtx.fillStyle = '#fff';
+        drawCtx.fillRect(0, 0, SIZE, SIZE);
+
+        function fitCanvas(canvas, pane) {
+            const vw = pane.clientWidth;
+            const vh = pane.clientHeight;
+            const s = Math.min(vw / SIZE, vh / SIZE);
+            const left = (vw - SIZE * s) / 2;
+            const top = (vh - SIZE * s) / 2;
+            canvas.style.transform = `translate(${left}px, ${top}px) scale(${s})`;
+            canvas.style.transformOrigin = '0 0';
+        }
+
+        // ─── AI Canvas (right pane) ───
+        const aiCanvas = document.getElementById('aiCanvas');
+        const aiCtx = aiCanvas.getContext('2d');
+        const aiDot = document.getElementById('aiDot');
+        const aiPane = document.getElementById('aiPane');
+        const aiLabel = document.getElementById('aiLabel');
+
+        aiCanvas.width = SIZE;
+        aiCanvas.height = SIZE;
+        aiCtx.fillStyle = '#fff';
+        aiCtx.fillRect(0, 0, SIZE, SIZE);
+
+        function fitAll() {
+            fitCanvas(drawCanvas, drawPane);
+            fitCanvas(aiCanvas, aiPane);
+        }
+        fitAll();
+        window.addEventListener('resize', fitAll);
+
+        // ─── Coordinate conversion ───
+        function screenToCanvas(clientX, clientY) {
+            const vw = drawPane.clientWidth;
+            const vh = drawPane.clientHeight;
+            const s = Math.min(vw / SIZE, vh / SIZE);
+            const left = (vw - SIZE * s) / 2;
+            const top = (vh - SIZE * s) / 2;
+            // Account for pane offset
+            const rect = drawPane.getBoundingClientRect();
+            return {
+                x: (clientX - rect.left - left) / s,
+                y: (clientY - rect.top - top) / s
+            };
+        }
+
+        // ─── WebSocket: Drawer ───
+        let drawerWs = null;
+        let strokeBuf = [];
+        let flushTimer = null;
+
+        function connectDrawer() {
+            const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+            drawerWs = new WebSocket(`${proto}//${location.host}/ws`);
+            drawerWs.onopen = () => {
+                drawDot.classList.add('ok');
+                flushStrokes();
+                sendSync();
+            };
+            drawerWs.onclose = () => { drawDot.classList.remove('ok'); setTimeout(connectDrawer, 2000); };
+            drawerWs.onerror = () => drawerWs.close();
+            drawerWs.onmessage = (event) => {
+                const msg = JSON.parse(event.data);
+                if (msg.type === 'request_sync') sendSync();
+            };
+        }
+
+        function send(msg) {
+            if (drawerWs && drawerWs.readyState === 1) drawerWs.send(JSON.stringify(msg));
+        }
+        function sendSync() {
+            send({ type: 'sync', canvas: drawCanvas.toDataURL('image/jpeg', 0.6).split(',')[1] });
+        }
+        function bufferStroke(x1, y1, x2, y2, w) {
+            strokeBuf.push({ x1, y1, x2, y2, w });
+            if (!flushTimer) flushTimer = requestAnimationFrame(flushStrokes);
+        }
+        function flushStrokes() {
+            flushTimer = null;
+            if (strokeBuf.length === 0) return;
+            send({ type: 'strokes', data: strokeBuf });
+            strokeBuf = [];
+        }
+
+        // ─── Drawing Interaction ───
+        let drawing = false, lx = 0, ly = 0;
+        let history = [];
+
+        drawCanvas.addEventListener('pointerdown', (e) => {
+            e.preventDefault();
+            drawing = true;
+            const p = screenToCanvas(e.clientX, e.clientY);
+            lx = p.x; ly = p.y;
+            history.push(drawCanvas.toDataURL('image/png'));
+            if (history.length > 30) history.shift();
+        });
+
+        drawCanvas.addEventListener('pointermove', (e) => {
+            e.preventDefault();
+            if (!drawing) return;
+            const p = screenToCanvas(e.clientX, e.clientY);
+            const pressure = e.pressure || 0.5;
+            const size = 2 + pressure * 6;
+            drawCtx.beginPath();
+            drawCtx.moveTo(lx, ly);
+            drawCtx.lineTo(p.x, p.y);
+            drawCtx.strokeStyle = '#000';
+            drawCtx.lineWidth = size;
+            drawCtx.lineCap = 'round';
+            drawCtx.lineJoin = 'round';
+            drawCtx.stroke();
+            bufferStroke(lx / SIZE, ly / SIZE, p.x / SIZE, p.y / SIZE, size / SIZE);
+            countStroke();
+            lx = p.x; ly = p.y;
+        });
+
+        drawCanvas.addEventListener('pointerup', (e) => {
+            e.preventDefault();
+            if (!drawing) return;
+            drawing = false;
+            flushStrokes();
+        });
+        drawCanvas.addEventListener('pointerleave', () => {
+            if (drawing) { drawing = false; flushStrokes(); }
+        });
+
+        // Undo / Clear
+        document.getElementById('clearBtn').addEventListener('click', () => {
+            drawCtx.fillStyle = '#fff';
+            drawCtx.fillRect(0, 0, SIZE, SIZE);
+            history = [];
+            send({ type: 'clear' });
+        });
+        document.getElementById('undoBtn').addEventListener('click', () => {
+            if (history.length === 0) return;
+            const img = new Image();
+            img.onload = () => {
+                drawCtx.clearRect(0, 0, SIZE, SIZE);
+                drawCtx.drawImage(img, 0, 0);
+                send({ type: 'sync', canvas: drawCanvas.toDataURL('image/jpeg', 0.6).split(',')[1] });
+            };
+            img.src = history.pop();
+        });
+        document.addEventListener('keydown', (e) => {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'z') { e.preventDefault(); document.getElementById('undoBtn').click(); }
+        });
+
+        connectDrawer();
+
+        // ─── WebSocket: Viewer (AI pane) ───
+        function connectViewer() {
+            const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const ws = new WebSocket(`${proto}//${location.host}/ws/viewer`);
+            ws.onopen = () => { aiDot.classList.add('ok'); };
+            ws.onclose = () => { aiDot.classList.remove('ok'); setTimeout(connectViewer, 2000); };
+            ws.onerror = () => ws.close();
+
+            ws.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                if (data.type === 'strokes') {
+                    for (const s of data.data) {
+                        aiCtx.beginPath();
+                        aiCtx.moveTo(s.x1 * SIZE, s.y1 * SIZE);
+                        aiCtx.lineTo(s.x2 * SIZE, s.y2 * SIZE);
+                        aiCtx.strokeStyle = '#000';
+                        aiCtx.lineWidth = s.w * SIZE;
+                        aiCtx.lineCap = 'round';
+                        aiCtx.lineJoin = 'round';
+                        aiCtx.stroke();
+                    }
+                    onDrawingActivity();
+                } else if (data.type === 'stroke') {
+                    aiCtx.beginPath();
+                    aiCtx.moveTo(data.x1 * SIZE, data.y1 * SIZE);
+                    aiCtx.lineTo(data.x2 * SIZE, data.y2 * SIZE);
+                    aiCtx.strokeStyle = '#000';
+                    aiCtx.lineWidth = data.size * SIZE;
+                    aiCtx.lineCap = 'round';
+                    aiCtx.lineJoin = 'round';
+                    aiCtx.stroke();
+                    onDrawingActivity();
+                } else if (data.type === 'sync') {
+                    const img = new Image();
+                    img.onload = () => {
+                        aiCtx.fillStyle = '#fff';
+                        aiCtx.fillRect(0, 0, SIZE, SIZE);
+                        aiCtx.drawImage(img, 0, 0, SIZE, SIZE);
+                    };
+                    img.src = 'data:image/jpeg;base64,' + data.canvas;
+                } else if (data.type === 'clear') {
+                    aiCtx.fillStyle = '#fff';
+                    aiCtx.fillRect(0, 0, SIZE, SIZE);
+                }
+            };
+        }
+        connectViewer();
+
+        // ─── Camera ───
+        const camVideo = document.getElementById('camVideo');
+        const camWrap = document.getElementById('camWrap');
+        const camLabel = document.getElementById('camLabel');
+        let camStream = null;
+
+        async function startCamera() {
+            if (!navigator.mediaDevices) { camWrap.classList.add('hidden'); return; }
+            try {
+                camStream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: 'user', width: { ideal: 640 } },
+                    audio: false,
+                });
+                camVideo.srcObject = camStream;
+                console.log('Camera started');
+            } catch (err) {
+                console.warn('Camera unavailable:', err);
+                camWrap.classList.add('hidden');
+            }
+        }
+        // Camera starts only after GDPR consent
+        // startCamera() is called from consent handler below
+
+        // ─── Recording (composites AI canvas + camera) ───
+        let mediaRecorder = null, recordedChunks = [], recording = false, idleTimer = null;
+        const IDLE_TIMEOUT = 5000;
+        const compCanvas = document.createElement('canvas');
+        const compCtx = compCanvas.getContext('2d');
+        let compRAF = null;
+
+        function startCompositing() {
+            compCanvas.width = aiPane.clientWidth;
+            compCanvas.height = aiPane.clientHeight;
+            function frame() {
+                const cw = compCanvas.width, ch = compCanvas.height;
+                compCtx.fillStyle = '#000';
+                compCtx.fillRect(0, 0, cw, ch);
+                const s = Math.min(cw / SIZE, ch / SIZE);
+                const dx = (cw - SIZE * s) / 2, dy = (ch - SIZE * s) / 2;
+                compCtx.drawImage(aiCanvas, dx, dy, SIZE * s, SIZE * s);
+                if (camVideo.srcObject && camVideo.readyState >= 2) {
+                    const pw = 180, ph = camVideo.videoHeight * (pw / camVideo.videoWidth) || 101;
+                    compCtx.drawImage(camVideo, cw - pw - 12, ch - ph - 12, pw, ph);
+                }
+                compRAF = requestAnimationFrame(frame);
+            }
+            frame();
+        }
+        function stopCompositing() { if (compRAF) { cancelAnimationFrame(compRAF); compRAF = null; } }
+
+        // ─── Turn State ───
+        // 'you'  = human is drawing, AI is watching (recording)
+        // 'ai'   = AI is responding, human watches
+        // 'idle' = nobody is drawing, waiting for human to start
+        let turn = 'idle';
+        const youLabel = document.getElementById('youLabel');
+
+        function setTurn(who) {
+            turn = who;
+            if (who === 'you') {
+                youLabel.textContent = 'You • drawing';
+                youLabel.style.color = 'rgba(34,197,94,0.8)';
+                aiLabel.textContent = 'AI • watching';
+                aiLabel.style.color = 'rgba(255,255,255,0.3)';
+            } else if (who === 'ai') {
+                youLabel.textContent = 'You • watching';
+                youLabel.style.color = 'rgba(255,255,255,0.3)';
+                aiLabel.textContent = 'AI ✦ drawing...';
+                aiLabel.style.color = 'rgba(168,85,247,0.9)';
+            } else {
+                youLabel.textContent = 'You';
+                youLabel.style.color = 'rgba(255,255,255,0.4)';
+                aiLabel.textContent = 'AI';
+                aiLabel.style.color = 'rgba(255,255,255,0.4)';
+            }
+        }
+
+        function startRecording() {
+            if (recording) return;
+            setTurn('you');
+            startCompositing();
+            const stream = compCanvas.captureStream(30);
+            recordedChunks = [];
+            const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9') ? 'video/webm;codecs=vp9' : 'video/webm';
+            mediaRecorder = new MediaRecorder(stream, { mimeType });
+            mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) recordedChunks.push(e.data); };
+            mediaRecorder.onstop = async () => {
+                stopCompositing();
+                const blob = new Blob(recordedChunks, { type: mimeType });
+                const formData = new FormData();
+                formData.append('file', blob, 'recording.webm');
+                try {
+                    const resp = await fetch('/api/recordings', { method: 'POST', body: formData });
+                    const result = await resp.json();
+                    console.log(`Recording saved to server: ${result.filename} (${(result.size_bytes / 1024 / 1024).toFixed(1)} MB)`);
+                } catch (err) {
+                    console.error('Upload failed:', err);
+                }
+                // Your turn is over — AI's turn now
+                aiTurn();
+            };
+            mediaRecorder.start(1000);
+            recording = true;
+            camLabel.innerHTML = '<span class="rec"></span>REC';
+            resetIdleTimer();
+            console.log('Recording started');
+            captureOperatorSnapshot();
+        }
+
+        function stopRecording() {
+            if (!recording) return;
+            mediaRecorder.stop();
+            recording = false;
+            camLabel.innerHTML = '<span class="rec"></span>LIVE';
+            clearTimeout(idleTimer);
+            console.log('Recording stopped');
+        }
+
+        async function aiTurn() {
+            setTurn('ai');
+            chatLog.textContent = 'AI is responding...';
+            try {
+                const resp = await fetch('/api/ai/respond', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ mode: 'replicate', your_strokes: totalStrokes }),
+                });
+                const result = await resp.json();
+                chatLog.textContent = `AI drew ${result.strokes} strokes (${result.mode})`;
+                console.log(`AI responded: ${result.strokes} strokes`);
+            } catch (err) {
+                chatLog.textContent = 'AI: not ready yet';
+            }
+            setTurn('idle');
+        }
+
+        function resetIdleTimer() {
+            clearTimeout(idleTimer);
+            idleTimer = setTimeout(() => { if (recording) { console.log('Auto-stopping recording (idle timeout)'); stopRecording(); } }, IDLE_TIMEOUT);
+        }
+
+        function onDrawingActivity() {
+            if (!recording && camStream) startRecording();
+            if (recording) resetIdleTimer();
+        }
+
+        async function captureOperatorSnapshot() {
+            if (!camVideo.srcObject || camVideo.readyState < 2) return;
+            try {
+                const sc = document.createElement('canvas');
+                sc.width = camVideo.videoWidth; sc.height = camVideo.videoHeight;
+                sc.getContext('2d').drawImage(camVideo, 0, 0);
+                const blob = await new Promise(r => sc.toBlob(r, 'image/jpeg', 0.85));
+                const fd = new FormData();
+                fd.append('snapshot', blob, 'operator.jpg');
+                const resp = await fetch('/api/operator-snapshot', { method: 'POST', body: fd });
+                const result = await resp.json();
+                console.log(`Operator snapshot: ${result.operator} (confidence: ${result.confidence})`);
+            } catch (err) { console.warn('Operator snapshot failed:', err); }
+        }
+
+        // ─── Stroke Counter ───
+        let totalStrokes = 0;
+        const strokeCountEl = document.getElementById('strokeCount');
+        function countStroke() {
+            totalStrokes++;
+            strokeCountEl.textContent = `${totalStrokes} stroke${totalStrokes === 1 ? '' : 's'}`;
+        }
+
+        // ─── Label Bar ───
+        // Only for labeling what you drew. Turn management is automatic.
+        const chatInput = document.getElementById('chatInput');
+        const chatSend = document.getElementById('chatSend');
+        const chatLog = document.getElementById('chatLog');
+
+        async function handleCommand(text) {
+            const cmd = text.toLowerCase().trim();
+
+            if (cmd === 'clear' || cmd === 'reset') {
+                document.getElementById('clearBtn').click();
+                aiCtx.fillStyle = '#fff';
+                aiCtx.fillRect(0, 0, SIZE, SIZE);
+                totalStrokes = 0;
+                strokeCountEl.textContent = '0 strokes';
+                chatLog.textContent = 'Cleared both canvases';
+                setTurn('idle');
+            } else {
+                // Label the current drawing
+                try {
+                    await fetch('/api/ai/label', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ label: text, strokes: totalStrokes }),
+                    });
+                    chatLog.textContent = `Labeled: "${text}" (${totalStrokes} strokes)`;
+                } catch (err) {
+                    chatLog.textContent = 'Failed to save label';
+                }
+            }
+        }
+
+        chatSend.addEventListener('click', () => {
+            const text = chatInput.value.trim();
+            if (!text) return;
+            chatInput.value = '';
+            handleCommand(text);
+        });
+        chatInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') { e.preventDefault(); chatSend.click(); }
+        });
+        // ─── GDPR Consent ───
+        const consentOverlay = document.getElementById('consentOverlay');
+        const studioEl = document.getElementById('studio');
+
+        document.getElementById('consentAccept').addEventListener('click', async () => {
+            // Record consent on server
+            try {
+                await fetch('/api/consent', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        action: 'granted',
+                        scope: ['camera', 'screen_recording', 'operator_snapshot', 'stroke_data', 'session_recordings', 'labels'],
+                        gdpr_article: '6(1)(a)',
+                        user_agent: navigator.userAgent,
+                    }),
+                });
+            } catch (err) {
+                console.warn('Consent log failed:', err);
+            }
+
+            consentOverlay.classList.add('hidden');
+            studioEl.style.display = '';
+            fitAll();
+            startCamera();
+            console.log('GDPR consent granted');
+        });
+
+        document.getElementById('consentDecline').addEventListener('click', async () => {
+            try {
+                await fetch('/api/consent', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        action: 'declined',
+                        scope: ['camera', 'screen_recording', 'operator_snapshot', 'stroke_data', 'session_recordings', 'labels'],
+                        gdpr_article: '6(1)(a)',
+                        user_agent: navigator.userAgent,
+                    }),
+                });
+            } catch (err) {}
+
+            document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#888;font:16px system-ui">Consent declined. Close this tab or refresh to try again.</div>';
+            console.log('GDPR consent declined');
+        });
+    })();
+    </script>
+</body>
+</html>
