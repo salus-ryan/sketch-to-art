@@ -51,21 +51,29 @@ const FONT = {
 //   [3] [6]
 //   [7] [8]
 // 256 possible patterns (vs 64 for 6-dot).
-// Letters use dots 7,8 as modifiers (e.g. dot 7 = lowercase indicator).
+// Dot 7 = capital indicator, dot 8 = number indicator.
 const BRAILLE = {
-  // Letters — 6-dot base + dot 7 (lowercase indicator in computer braille)
-  a: [1,7],           b: [1,2,7],         c: [1,4,7],         d: [1,4,5,7],
-  e: [1,5,7],         f: [1,2,4,7],       g: [1,2,4,5,7],     h: [1,2,5,7],
-  i: [2,4,7],         j: [2,4,5,7],       k: [1,3,7],         l: [1,2,3,7],
-  m: [1,3,4,7],       n: [1,3,4,5,7],     o: [1,3,5,7],       p: [1,2,3,4,7],
-  q: [1,2,3,4,5,7],   r: [1,2,3,5,7],     s: [2,3,4,7],       t: [2,3,4,5,7],
-  u: [1,3,6,7],       v: [1,2,3,6,7],     w: [2,4,5,6,7],     x: [1,3,4,6,7],
-  y: [1,3,4,5,6,7],   z: [1,3,5,6,7],
-  // Digits — use dot 8 as number modifier
+  // Lowercase — base 6-dot patterns, NO dot 7 or 8
+  a: [1],             b: [1,2],           c: [1,4],           d: [1,4,5],
+  e: [1,5],           f: [1,2,4],         g: [1,2,4,5],       h: [1,2,5],
+  i: [2,4],           j: [2,4,5],         k: [1,3],           l: [1,2,3],
+  m: [1,3,4],         n: [1,3,4,5],       o: [1,3,5],         p: [1,2,3,4],
+  q: [1,2,3,4,5],     r: [1,2,3,5],       s: [2,3,4],         t: [2,3,4,5],
+  u: [1,3,6],         v: [1,2,3,6],       w: [2,4,5,6],       x: [1,3,4,6],
+  y: [1,3,4,5,6],     z: [1,3,5,6],
+  // Uppercase — same patterns + dot 7 (capital indicator)
+  A: [1,7],           B: [1,2,7],         C: [1,4,7],         D: [1,4,5,7],
+  E: [1,5,7],         F: [1,2,4,7],       G: [1,2,4,5,7],     H: [1,2,5,7],
+  I: [2,4,7],         J: [2,4,5,7],       K: [1,3,7],         L: [1,2,3,7],
+  M: [1,3,4,7],       N: [1,3,4,5,7],     O: [1,3,5,7],       P: [1,2,3,4,7],
+  Q: [1,2,3,4,5,7],   R: [1,2,3,5,7],     S: [2,3,4,7],       T: [2,3,4,5,7],
+  U: [1,3,6,7],       V: [1,2,3,6,7],     W: [2,4,5,6,7],     X: [1,3,4,6,7],
+  Y: [1,3,4,5,6,7],   Z: [1,3,5,6,7],
+  // Digits — base pattern + dot 8 (number indicator)
   '0': [2,4,5,8],     '1': [1,8],          '2': [1,2,8],        '3': [1,4,8],
   '4': [1,4,5,8],     '5': [1,5,8],        '6': [1,2,4,8],      '7': [1,2,4,5,8],
   '8': [1,2,5,8],     '9': [2,4,8],
-  // Punctuation — various 8-dot combos
+  // Punctuation — 6-dot only (no modifiers)
   ' ': [],
   '.': [2,5,6],
   ',': [2],
@@ -110,7 +118,7 @@ function brailleText(text, startX = 0.05, startY = 0.25, cellW = 0.07, cellH = 0
   const strokes = [];
   const spacing = cellW * 1.3;
   for (let i = 0; i < text.length; i++) {
-    const ch = text[i].toLowerCase();
+    const ch = text[i];
     const dots = BRAILLE[ch];
     if (!dots || dots.length === 0) continue;  // space = no dots
     const ox = startX + i * spacing;
