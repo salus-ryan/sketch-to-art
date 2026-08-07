@@ -82,6 +82,34 @@ const BRAILLE = {
   ':': [2,5],
   '-': [3,6],
   '#': [3,4,5,6],
+  // ─── Nemeth Braille math symbols ───
+  // Operators
+  '+': [3,4,6],
+  '=': [4,6],                 // Nemeth equals (simplified to one cell)
+  '*': [1,6],                 // multiplication dot
+  '/': [3,4],                 // fraction line
+  '(': [1,2,3,5,6],
+  ')': [2,3,4,5,6],
+  // Nemeth-specific tokens (use § prefix for multi-cell symbols)
+  '§int': [2,3,4,6],          // integral sign ∫
+  '§sum': [1,4,6],            // summation Σ
+  '§inf': [1,2,3,4,5,6],      // infinity ∞
+  '§pi': [1,2,4,6],           // π
+  '§sqrt': [3,4,5],           // square root prefix √
+  '§exp': [4,5],              // superscript indicator (exponent)
+  '§sub': [5,6],              // subscript indicator
+  '§frac': [1,4,5,6],         // fraction open
+  '§endf': [3,4,5,6],         // fraction close
+  '§dx': [1,4,5],             // dx (differential)
+  '§lim': [1,2,3],            // lim
+  '§arr': [2,5,6],            // arrow →
+  '§theta': [1,4,5,6],        // θ
+  '§alpha': [1],              // α (same as 'a' in Nemeth context)
+  '§beta': [1,2],             // β
+  '§gamma': [1,2,4,5],        // γ
+  '§delta': [1,4,5],          // δ
+  '§sigma': [2,3,4],          // σ
+  '§omega': [2,4,5,6],        // ω
 };
 
 // Dot positions within a cell (normalized 0–1 within cell bounds)
@@ -117,15 +145,37 @@ function brailleCell(dots, ox, oy, cw, ch) {
 function brailleText(text, startX = 0.05, startY = 0.25, cellW = 0.07, cellH = 0.16) {
   const strokes = [];
   const spacing = cellW * 1.3;
-  for (let i = 0; i < text.length; i++) {
-    const ch = text[i];
-    const dots = BRAILLE[ch];
+  const tokens = tokenizeBraille(text);
+  for (let i = 0; i < tokens.length; i++) {
+    const dots = BRAILLE[tokens[i]];
     if (!dots || dots.length === 0) continue;  // space = no dots
     const ox = startX + i * spacing;
     const oy = startY;
     strokes.push(...brailleCell(dots, ox, oy, cellW, cellH));
   }
   return strokes;
+}
+
+// Tokenize a string into braille tokens — handles §-prefixed Nemeth symbols
+function tokenizeBraille(text) {
+  const tokens = [];
+  let i = 0;
+  while (i < text.length) {
+    if (text[i] === '§') {
+      // Read until next space, §, or regular char boundary
+      let end = i + 1;
+      while (end < text.length && text[end] !== ' ' && text[end] !== '§'
+             && !BRAILLE[text[end]]) {
+        end++;
+      }
+      tokens.push(text.slice(i, end));
+      i = end;
+    } else {
+      tokens.push(text[i]);
+      i++;
+    }
+  }
+  return tokens;
 }
 
 // ─── Shape Library ───
@@ -257,6 +307,47 @@ const CURRICULUM = [
     description: 'Write "fix" in braille',
     draw: () => ({ type: 'raw', strokes: brailleText('fix') }),
   },
+  // ─── Nemeth Math ───
+  {
+    name: 'math-integral',
+    description: 'Solve ∫x²dx = x³/3 in Nemeth braille',
+    draw: () => ({ type: 'multi', parts: [
+      { type: 'raw', strokes: brailleText('§intx§exp2§dx', 0.05, 0.2, 0.06, 0.14) },
+      { type: 'raw', strokes: brailleText('=', 0.05, 0.45, 0.06, 0.14) },
+      { type: 'raw', strokes: brailleText('x§exp3/3', 0.14, 0.45, 0.06, 0.14) },
+    ]}),
+  },
+  {
+    name: 'math-euler',
+    description: 'Write Euler\'s identity e^iπ + 1 = 0 in Nemeth braille',
+    draw: () => ({ type: 'multi', parts: [
+      { type: 'raw', strokes: brailleText('e§expi§pi', 0.05, 0.2, 0.065, 0.15) },
+      { type: 'raw', strokes: brailleText('+1=0', 0.05, 0.5, 0.065, 0.15) },
+    ]}),
+  },
+  {
+    name: 'math-quadratic',
+    description: 'Write the quadratic formula in Nemeth braille',
+    draw: () => ({ type: 'multi', parts: [
+      { type: 'raw', strokes: brailleText('x=', 0.03, 0.15, 0.05, 0.12) },
+      { type: 'raw', strokes: brailleText('(-b+§sqrtb§exp2-4ac)', 0.03, 0.38, 0.04, 0.10) },
+      { type: 'raw', strokes: brailleText('/2a', 0.03, 0.6, 0.05, 0.12) },
+    ]}),
+  },
+  {
+    name: 'math-pythagorean',
+    description: 'Write a² + b² = c² in Nemeth braille',
+    draw: () => ({ type: 'raw', strokes: brailleText('a§exp2+b§exp2=c§exp2', 0.05, 0.3, 0.06, 0.14) }),
+  },
+  {
+    name: 'math-sum',
+    description: 'Write Σ(n=1→∞) 1/n² = π²/6 in Nemeth braille',
+    draw: () => ({ type: 'multi', parts: [
+      { type: 'raw', strokes: brailleText('§sumn=1§arr§inf', 0.05, 0.15, 0.055, 0.13) },
+      { type: 'raw', strokes: brailleText('1/n§exp2', 0.05, 0.4, 0.055, 0.13) },
+      { type: 'raw', strokes: brailleText('=§pi§exp2/6', 0.05, 0.65, 0.055, 0.13) },
+    ]}),
+  },
   {
     name: 'shapes',
     description: 'Draw basic geometric shapes',
@@ -299,8 +390,7 @@ const CURRICULUM = [
 ];
 
 // ─── Drawing Engine ───
-async function drawStrokes(page, canvasBox, strokes, speed = 3) {
-  const penLift = process.env.HEADED ? 30 : 0;  // ms between strokes when visible
+async function drawStrokes(page, canvasBox, strokes) {
   for (const stroke of strokes) {
     if (stroke.length < 2) continue;
     const toX = (nx) => canvasBox.x + nx * canvasBox.width;
@@ -309,17 +399,11 @@ async function drawStrokes(page, canvasBox, strokes, speed = 3) {
     await page.mouse.move(toX(stroke[0][0]), toY(stroke[0][1]));
     await page.mouse.down();
     for (let pi = 1; pi < stroke.length; pi++) {
-      const prev = stroke[pi - 1], pt = stroke[pi];
-      for (let s = 1; s <= speed; s++) {
-        const t = s / speed;
-        await page.mouse.move(
-          toX(prev[0] + (pt[0] - prev[0]) * t),
-          toY(prev[1] + (pt[1] - prev[1]) * t),
-        );
-      }
+      await page.mouse.move(
+        toX(stroke[pi][0]), toY(stroke[pi][1]), { steps: 2 }
+      );
     }
     await page.mouse.up();
-    if (penLift) await new Promise(r => setTimeout(r, penLift));
   }
 }
 
