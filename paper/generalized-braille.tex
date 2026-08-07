@@ -14,6 +14,8 @@
 \usepackage{enumitem}
 \usepackage[expansion=false]{microtype}
 \usepackage{xcolor}
+\usepackage{graphicx}
+\usepackage{subcaption}
 
 % ─── Theorem environments ───
 \newtheorem{definition}{Definition}
@@ -644,6 +646,91 @@ Two conclusions emerge:
     This motivates moving from pixel-level to
     stroke-level representations (see Section~\ref{sec:conclusion}).
 \end{enumerate}
+
+\subsection{Qualitative: Brushstroke Character}
+
+An unexpected finding is that Braille pre-training produces a
+visually distinct brushstroke quality in the style-transfer output.
+Figure~\ref{fig:comparison} shows all five models applied to
+the same input image.
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=\textwidth]{fig_comparison.png}
+  \caption{Style transfer output for all five models on the same input.
+    From left: Baseline, BR-6, BR-8, BR-6S, BR-10S.
+    The ternary models (BR-6S, BR-10S) produce subtly more
+    deliberate, calligraphic brushstrokes.}
+  \label{fig:comparison}
+\end{figure}
+
+Figure~\ref{fig:sky} isolates the sky region where differences
+are most visible.
+The ternary models render Van Gogh's swirls with more structured,
+almost calligraphic strokes---an effect we attribute to the
+pre-training bias that \emph{spatial marks carry meaning}.
+The network learned during Braille pre-training that dots are not
+noise but intentional marks with three distinct states.
+This prior transfers to style application, where brushstrokes
+are treated as deliberate gestures rather than texture.
+
+\begin{figure}[h]
+  \centering
+  \begin{subfigure}[b]{0.32\textwidth}
+    \includegraphics[width=\textwidth]{fig_baseline_sky.png}
+    \caption{Baseline}
+  \end{subfigure}
+  \hfill
+  \begin{subfigure}[b]{0.32\textwidth}
+    \includegraphics[width=\textwidth]{fig_br6s_sky.png}
+    \caption{BR-6S (ternary)}
+  \end{subfigure}
+  \hfill
+  \begin{subfigure}[b]{0.32\textwidth}
+    \includegraphics[width=\textwidth]{fig_br10s_sky.png}
+    \caption{BR-10S (ternary)}
+  \end{subfigure}
+  \caption{Sky region detail. The ternary models produce
+    more structured brushstrokes with a calligraphic quality,
+    reflecting the pre-training prior that spatial marks
+    carry intentional meaning.}
+  \label{fig:sky}
+\end{figure}
+
+To verify that these qualitative differences generalize beyond
+the training style image, we apply all five models to three
+canonical paintings from different periods and traditions
+(Figures~\ref{fig:mona}--\ref{fig:pearl}).
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=\textwidth]{fig_mona_lisa.jpg}
+  \caption{\emph{Mona Lisa} (da Vinci).
+    The ternary models (BR-6S, BR-10S) render warmer tones
+    in the landscape background, with more distinct brushwork
+    in the sfumato transitions.}
+  \label{fig:mona}
+\end{figure}
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=\textwidth]{fig_great_wave.jpg}
+  \caption{\emph{The Great Wave off Kanagawa} (Hokusai).
+    The wave foam and spray dots are rendered with sharper
+    definition by the ternary models, producing an effect
+    closer to the original woodblock print aesthetic.}
+  \label{fig:wave}
+\end{figure}
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=\textwidth]{fig_girl_pearl.jpg}
+  \caption{\emph{Girl with a Pearl Earring} (Vermeer).
+    Skin tones shift noticeably: the ternary models produce
+    warmer, more saturated renderings, with the pearl earring
+    and collar catching light differently.}
+  \label{fig:pearl}
+\end{figure}
 
 \paragraph{Practical implication.}
 Ternary Braille pre-training reduces the compute required to reach a
