@@ -245,6 +245,18 @@
                     ctx.fillStyle = '#fff';
                     ctx.fillRect(0, 0, SIZE, SIZE);
                 }
+
+                else if (data.type === 'ai_image') {
+                    // AI-generated image overlay
+                    const img = new Image();
+                    img.onload = () => {
+                        // Blend AI image with sketch at 70% opacity
+                        ctx.globalAlpha = 0.7;
+                        ctx.drawImage(img, 0, 0, SIZE, SIZE);
+                        ctx.globalAlpha = 1.0;
+                    };
+                    img.src = 'data:image/jpeg;base64,' + data.image;
+                }
             };
         }
 

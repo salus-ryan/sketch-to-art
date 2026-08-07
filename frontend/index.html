@@ -253,6 +253,28 @@
             if (e.ctrlKey && e.key === 'z') { e.preventDefault(); document.getElementById('undoBtn').click(); }
         });
 
+        // --- Auto AI generation (triggers after drawing pause) ---
+        let genTimer = null;
+        const GEN_DELAY = 1500; // ms of idle before triggering AI
+
+        function scheduleGenerate() {
+            clearTimeout(genTimer);
+            genTimer = setTimeout(async () => {
+                try {
+                    const resp = await fetch('/api/generate', { method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({}) });
+                    if (resp.ok) {
+                        const data = await resp.json();
+                        console.log(`AI generated in ${data.time_ms}ms from ${data.strokes} strokes`);
+                    }
+                } catch (e) { /* AI not available, ignore */ }
+            }, GEN_DELAY);
+        }
+
+        // Hook into pointerup to trigger generation after drawing stops
+        canvas.addEventListener('pointerup', scheduleGenerate);
+
         // Prevent default touch
         document.addEventListener('touchmove', (e) => { if (e.touches.length === 1) e.preventDefault(); }, { passive: false });
     })();

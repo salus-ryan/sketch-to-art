@@ -784,4 +784,76 @@ async def heartbeat():
             "count": len(rec_files),
             "total_size_mb": round(rec_size / (1024 * 1024), 1),
         },
+        "ai": {
+            "enabled": ai_engine is not None,
+        },
+    })
+
+
+# ═══════════════════════════════════════════════════════════════════
+# AI GENERATION (BrailleNet)
+# ═══════════════════════════════════════════════════════════════════
+
+ai_engine = None
+
+def load_ai_engine():
+    """Try to load the BrailleNet inference engine. Fails gracefully."""
+    global ai_engine
+    encoder_path = BASE_DIR / "models" / "braillenet_pretrained.pth"
+    decoder_path = BASE_DIR / "models" / "sketch_decoder_best.pth"
+
+    if not encoder_path.exists() or not decoder_path.exists():
+        print("AI engine: model files not found, running without AI")
+        return
+
+    try:
+        from inference_engine import InferenceEngine
+        ai_engine = InferenceEngine(str(encoder_path), str(decoder_path))
+        print("AI engine loaded!")
+    except Exception as e:
+        print(f"AI engine failed to load: {e}")
+
+
+@app.on_event("startup")
+async def startup():
+    load_ai_engine()
+
+
+@app.post("/api/generate")
+async def generate_from_strokes(request: Request):
+    """Generate an image from the current stroke buffer using BrailleNet."""
+    import base64
+
+    if ai_engine is None:
+        return JSONResponse({"status": "error", "message": "AI engine not loaded"}, status_code=503)
+
+    # Collect all strokes from canvas state
+    flat_strokes = []
+    for msg in canvas_state:
+        if msg.get("type") == "strokes":
+            flat_strokes.extend(msg.get("data", []))
+        elif msg.get("type") == "stroke":
+            flat_strokes.append(msg)
+
+    if not flat_strokes:
+        return JSONResponse({"status": "error", "message": "No strokes on canvas"})
+
+    jpeg_bytes, inference_ms = await ai_engine.generate_async(flat_strokes)
+
+    # Send to viewers
+    img_b64 = base64.b64encode(jpeg_bytes).decode("ascii")
+    await broadcast({
+        "type": "ai_image",
+        "image": img_b64,
+        "time_ms": round(inference_ms),
+    })
+
+    audit("ai.generated", actor="braillenet",
+          description=f"Generated image from {len(flat_strokes)} strokes in {inference_ms:.0f}ms",
+          meta={"strokes": len(flat_strokes), "time_ms": round(inference_ms)})
+
+    return JSONResponse({
+        "status": "ok",
+        "time_ms": round(inference_ms),
+        "strokes": len(flat_strokes),
     })

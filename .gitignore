@@ -9,3 +9,4 @@ faces/
 node_modules/
 test-results/
 models/lora/
+data/
