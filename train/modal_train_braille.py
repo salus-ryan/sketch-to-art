@@ -1,7 +1,9 @@
 """
 Braille-pretrained style transfer — Modal training script.
 
-Stage 1: Pre-train on synthetically generated braille character images.
+Stage 1: Pre-train on synthetically generated 8-dot braille images.
+         8-dot braille (computer braille) uses a 2×4 dot grid with 256
+         possible patterns — 4× richer than standard 6-dot (64 patterns).
          This teaches the network that spatial dot patterns carry meaning,
          and that precision matters.
 Stage 2: Fine-tune on COCO with style loss (same as standard training).
@@ -108,6 +110,7 @@ def train(
     style_name: str = "custom",
     epochs: int = 2,
     braille_pretrain_steps: int = 2000,
+    braille_dots: int = 6,
     batch_size: int = 64,
     lr: float = 1e-3,
     content_weight: float = 1e5,
@@ -133,11 +136,23 @@ def train(
     # =======================================================================
     # BRAILLE DATA GENERATOR
     # =======================================================================
-    # All 64 possible braille cells (6-dot binary patterns)
+    num_dots = braille_dots  # 6 (classic: 2x3, 64 patterns) or 8 (computer: 2x4, 256 patterns)
+    num_patterns = 2 ** num_dots
     BRAILLE_PATTERNS = []
-    for i in range(64):
-        dots = [(i >> bit) & 1 for bit in range(6)]
+    for i in range(num_patterns):
+        dots = [(i >> bit) & 1 for bit in range(num_dots)]
         BRAILLE_PATTERNS.append(dots)
+
+    # Dot grid layout: 2 columns, 3 rows (6-dot) or 4 rows (8-dot)
+    num_rows = num_dots // 2
+    DOT_GRID = []
+    for r in range(num_rows):
+        for c in range(2):
+            dx = -1 + c * 2   # -1 or 1
+            dy = r - (num_rows - 1) / 2  # centered vertically
+            DOT_GRID.append((dx, dy))
+
+    print(f"Braille config: {num_dots}-dot, {num_patterns} patterns, {num_rows} rows")
 
     def render_braille_image(size=256, cells_per_side=4, jitter=True):
         """Generate an image with random braille characters arranged in a grid.
@@ -154,16 +169,9 @@ def train(
                 pattern = random.choice(BRAILLE_PATTERNS)
                 cx = col * cell_w + cell_w // 2
                 cy = row * cell_h + cell_h // 2
-
-                # 2x3 dot grid within cell
-                dot_positions = [
-                    (-1, -1), (1, -1),   # row 0
-                    (-1,  0), (1,  0),   # row 1
-                    (-1,  1), (1,  1),   # row 2
-                ]
                 spacing = cell_w // 5
 
-                for dot_idx, (dx, dy) in enumerate(dot_positions):
+                for dot_idx, (dx, dy) in enumerate(DOT_GRID):
                     if pattern[dot_idx]:
                         px = cx + dx * spacing
                         py = cy + dy * spacing
@@ -248,8 +256,9 @@ def train(
     # STAGE 1: BRAILLE PRE-TRAINING
     # =======================================================================
     print(f"\n{'='*60}")
-    print(f"STAGE 1: Braille pre-training ({braille_pretrain_steps} steps)")
+    print(f"STAGE 1: Braille pre-training ({braille_pretrain_steps} steps, {num_dots}-dot)")
     print(f"Teaching network that spatial dot patterns carry meaning...")
+    print(f"{num_patterns} unique patterns, {num_rows}-row grid")
     print(f"{'='*60}\n")
 
     braille_ds = BrailleDataset(size=image_size, length=braille_pretrain_steps * batch_size,
@@ -388,6 +397,7 @@ def main(
     epochs: int = 2,
     batch_size: int = 64,
     braille_pretrain_steps: int = 2000,
+    braille_dots: int = 6,
 ):
     from pathlib import Path
 
@@ -397,11 +407,11 @@ def main(
         return
 
     if not style_name:
-        style_name = style_path.stem + "_braille"
+        style_name = style_path.stem + f"_braille{braille_dots}"
 
     print(f"Training BRAILLE-pretrained style transfer: {style_name}")
     print(f"Style image: {style_path}")
-    print(f"Braille pre-training steps: {braille_pretrain_steps}")
+    print(f"Braille: {braille_dots}-dot, {braille_pretrain_steps} steps")
 
     style_bytes = style_path.read_bytes()
     model_bytes = train.remote(
@@ -410,6 +420,7 @@ def main(
         epochs=epochs,
         batch_size=batch_size,
         braille_pretrain_steps=braille_pretrain_steps,
+        braille_dots=braille_dots,
     )
 
     out_dir = Path("models")

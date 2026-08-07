@@ -44,30 +44,45 @@ const FONT = {
   '3': [[[0.1,0.1],[0.3,0],[0.5,0.1],[0.5,0.3],[0.35,0.45]],[[0.35,0.45],[0.5,0.6],[0.5,0.85],[0.3,1],[0.1,0.9]]],
 };
 
-// ─── Braille ───
-// Standard 6-dot braille: dots numbered 1-6 in a 2×3 grid
+// ─── Braille (8-dot native) ───
+// 8-dot computer braille: dots numbered 1-8 in a 2×4 grid
 //   [1] [4]
 //   [2] [5]
 //   [3] [6]
-// Each letter maps to which dots are raised.
+//   [7] [8]
+// 256 possible patterns (vs 64 for 6-dot).
+// Letters use dots 7,8 as modifiers (e.g. dot 7 = lowercase indicator).
 const BRAILLE = {
-  a: [1],           b: [1,2],         c: [1,4],         d: [1,4,5],
-  e: [1,5],         f: [1,2,4],       g: [1,2,4,5],     h: [1,2,5],
-  i: [2,4],         j: [2,4,5],       k: [1,3],         l: [1,2,3],
-  m: [1,3,4],       n: [1,3,4,5],     o: [1,3,5],       p: [1,2,3,4],
-  q: [1,2,3,4,5],   r: [1,2,3,5],     s: [2,3,4],       t: [2,3,4,5],
-  u: [1,3,6],       v: [1,2,3,6],     w: [2,4,5,6],     x: [1,3,4,6],
-  y: [1,3,4,5,6],   z: [1,3,5,6],
+  // Letters — 6-dot base + dot 7 (lowercase indicator in computer braille)
+  a: [1,7],           b: [1,2,7],         c: [1,4,7],         d: [1,4,5,7],
+  e: [1,5,7],         f: [1,2,4,7],       g: [1,2,4,5,7],     h: [1,2,5,7],
+  i: [2,4,7],         j: [2,4,5,7],       k: [1,3,7],         l: [1,2,3,7],
+  m: [1,3,4,7],       n: [1,3,4,5,7],     o: [1,3,5,7],       p: [1,2,3,4,7],
+  q: [1,2,3,4,5,7],   r: [1,2,3,5,7],     s: [2,3,4,7],       t: [2,3,4,5,7],
+  u: [1,3,6,7],       v: [1,2,3,6,7],     w: [2,4,5,6,7],     x: [1,3,4,6,7],
+  y: [1,3,4,5,6,7],   z: [1,3,5,6,7],
+  // Digits — use dot 8 as number modifier
+  '0': [2,4,5,8],     '1': [1,8],          '2': [1,2,8],        '3': [1,4,8],
+  '4': [1,4,5,8],     '5': [1,5,8],        '6': [1,2,4,8],      '7': [1,2,4,5,8],
+  '8': [1,2,5,8],     '9': [2,4,8],
+  // Punctuation — various 8-dot combos
   ' ': [],
-  // number indicator
+  '.': [2,5,6],
+  ',': [2],
+  '!': [2,3,5],
+  '?': [2,3,6],
+  ':': [2,5],
+  '-': [3,6],
   '#': [3,4,5,6],
 };
 
 // Dot positions within a cell (normalized 0–1 within cell bounds)
+// 2×4 grid: 4 rows instead of 3
 const DOT_POS = {
-  1: [0.3, 0.15],  4: [0.7, 0.15],
-  2: [0.3, 0.50],  5: [0.7, 0.50],
-  3: [0.3, 0.85],  6: [0.7, 0.85],
+  1: [0.3, 0.12],  4: [0.7, 0.12],
+  2: [0.3, 0.37],  5: [0.7, 0.37],
+  3: [0.3, 0.62],  6: [0.7, 0.62],
+  7: [0.3, 0.88],  8: [0.7, 0.88],
 };
 
 // Draw a single braille cell as small circles at (ox, oy) with size (cw, ch)
@@ -91,7 +106,7 @@ function brailleCell(dots, ox, oy, cw, ch) {
 }
 
 // Draw text as braille cells
-function brailleText(text, startX = 0.05, startY = 0.3, cellW = 0.07, cellH = 0.12) {
+function brailleText(text, startX = 0.05, startY = 0.25, cellW = 0.07, cellH = 0.16) {
   const strokes = [];
   const spacing = cellW * 1.3;
   for (let i = 0; i < text.length; i++) {
@@ -217,12 +232,12 @@ const CURRICULUM = [
   {
     name: 'braille-alpha',
     description: 'Write a-m in braille',
-    draw: () => ({ type: 'raw', strokes: brailleText('abcdefghijklm', 0.02, 0.3, 0.055, 0.10) }),
+    draw: () => ({ type: 'raw', strokes: brailleText('abcdefghijklm', 0.02, 0.25, 0.055, 0.14) }),
   },
   {
     name: 'braille-alpha-2',
     description: 'Write n-z in braille',
-    draw: () => ({ type: 'raw', strokes: brailleText('nopqrstuvwxyz', 0.02, 0.3, 0.055, 0.10) }),
+    draw: () => ({ type: 'raw', strokes: brailleText('nopqrstuvwxyz', 0.02, 0.25, 0.055, 0.14) }),
   },
   {
     name: 'commit-feat',
@@ -422,7 +437,7 @@ function kernel(level, seed) {
     const startX = range(rng, 0.05, 0.35);
     const startY = range(rng, 0.2, 0.5);
     const cellW = range(rng, 0.06, 0.09);
-    const cellH = cellW * 1.7;
+    const cellH = cellW * 2.3;  // 8-dot: 4 rows, taller cells
     return {
       name: id, level,
       description: `Braille: "${word}"`,
@@ -482,7 +497,7 @@ function kernel(level, seed) {
       description: `Composition: ${desc}`,
       draw: () => {
         const plan = { type: 'multi', parts: [{ type: 'shapes', shapes }] };
-        if (label) plan.parts.push({ type: 'raw', strokes: brailleText(label, 0.1, 0.82, 0.05, 0.085) });
+        if (label) plan.parts.push({ type: 'raw', strokes: brailleText(label, 0.1, 0.78, 0.05, 0.11) });
         return plan;
       },
     };
