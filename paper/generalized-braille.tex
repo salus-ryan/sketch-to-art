@@ -732,6 +732,25 @@ canonical paintings from different periods and traditions
   \label{fig:pearl}
 \end{figure}
 
+Finally, as a zero-shot generalization test on a truly novel input,
+we apply all five models to a photograph of the author
+taken during the writing of this paper---an image no model
+has encountered during training (Figure~\ref{fig:author}).
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=\textwidth]{fig_ryan.jpg}
+  \caption{Zero-shot style transfer on a novel photograph of the author.
+    From left: original, Baseline, BR-6, BR-8, BR-6S, BR-10S.
+    The ternary models (BR-6S, BR-10S) render warmer skin tones
+    and sharper edge definition on glasses, jewelry, and
+    fabric texture---consistent with the pre-training prior
+    that spatial marks carry intentional meaning.
+    This image was captured and processed during the writing of
+    this paper and has never appeared in any training set.}
+  \label{fig:author}
+\end{figure}
+
 \paragraph{Practical implication.}
 Ternary Braille pre-training reduces the compute required to reach a
 target loss.
