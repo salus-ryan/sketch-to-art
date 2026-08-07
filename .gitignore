@@ -1,3 +1,13 @@
 venv/
 __pycache__/
 *.pyc
+*.pth
+models/*.pth
+.env
+certs/
+recordings/
+logs/
+faces/
+node_modules/
+test-results/
+models/lora/
