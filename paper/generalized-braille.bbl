@@ -1,0 +1,148 @@
+\begin{thebibliography}{21}
+\providecommand{\natexlab}[1]{#1}
+\providecommand{\url}[1]{\texttt{#1}}
+\expandafter\ifx\csname urlstyle\endcsname\relax
+  \providecommand{\doi}[1]{doi: #1}\else
+  \providecommand{\doi}{doi: \begingroup \urlstyle{rm}\Url}\fi
+
+\bibitem[Bengio et~al.(2009)Bengio, Louradour, Collobert, and
+  Weston]{bengio2009curriculum}
+Yoshua Bengio, J{\'e}r{\^o}me Louradour, Ronan Collobert, and Jason Weston.
+\newblock Curriculum learning.
+\newblock In \emph{International Conference on Machine Learning (ICML)}, pages
+  41--48, 2009.
+
+\bibitem[Bricken et~al.(2023)Bricken, Templeton, Batson, Chen, Jermyn, Conerly,
+  Turner, Anil, Denison, Askell, Lasenby, Wu, Kravec, Schiefer, Maxwell,
+  Joseph, Hatfield-Dodds, Tamkin, Nguyen, McLean, Burke, Hume, Carter,
+  Henighan, and Olah]{bricken2023monosemanticity}
+Trenton Bricken, Adly Templeton, Joshua Batson, Brian Chen, Adam Jermyn, Tom
+  Conerly, Nick Turner, Cem Anil, Carson Denison, Amanda Askell, Robert
+  Lasenby, Yifan Wu, Shauna Kravec, Nicholas Schiefer, Tim Maxwell, Nicholas
+  Joseph, Zac Hatfield-Dodds, Alex Tamkin, Karina Nguyen, Brayden McLean,
+  Josiah~E. Burke, Tristan Hume, Shan Carter, Tom Henighan, and Christopher
+  Olah.
+\newblock Towards monosemanticity: Decomposing language models with dictionary
+  learning.
+\newblock In \emph{Anthropic Research}, 2023.
+
+\bibitem[Devlin et~al.(2019)Devlin, Chang, Lee, and Toutanova]{devlin2019bert}
+Jacob Devlin, Ming-Wei Chang, Kenton Lee, and Kristina Toutanova.
+\newblock {BERT}: Pre-training of deep bidirectional transformers for language
+  understanding.
+\newblock \emph{arXiv preprint arXiv:1810.04805}, 2019.
+
+\bibitem[Gatys et~al.(2016)Gatys, Ecker, and Bethge]{gatys2016image}
+Leon~A. Gatys, Alexander~S. Ecker, and Matthias Bethge.
+\newblock Image style transfer using convolutional neural networks.
+\newblock In \emph{IEEE Conference on Computer Vision and Pattern Recognition
+  (CVPR)}, pages 2414--2423, 2016.
+
+\bibitem[Ha and Eck(2018)]{ha2018sketchrnn}
+David Ha and Douglas Eck.
+\newblock A neural representation of sketch drawings.
+\newblock In \emph{International Conference on Learning Representations
+  (ICLR)}, 2018.
+
+\bibitem[He et~al.(2022)He, Chen, Xie, Li, Doll{\'a}r, and Girshick]{he2022mae}
+Kaiming He, Xinlei Chen, Saining Xie, Yanghao Li, Piotr Doll{\'a}r, and Ross
+  Girshick.
+\newblock Masked autoencoders are scalable vision learners.
+\newblock In \emph{IEEE/CVF Conference on Computer Vision and Pattern
+  Recognition (CVPR)}, pages 16000--16009, 2022.
+
+\bibitem[Huang and Belongie(2017)]{huang2017adain}
+Xun Huang and Serge Belongie.
+\newblock Arbitrary style transfer in real-time with adaptive instance
+  normalization.
+\newblock \emph{arXiv preprint arXiv:1703.06868}, 2017.
+
+\bibitem[Hubara et~al.(2017)Hubara, Courbariaux, Soudry, El-Yaniv, and
+  Bengio]{hubara2017quantized}
+Itay Hubara, Matthieu Courbariaux, Daniel Soudry, Ran El-Yaniv, and Yoshua
+  Bengio.
+\newblock Quantized neural networks: Training neural networks with low
+  precision weights and activations.
+\newblock \emph{Journal of Machine Learning Research}, 18\penalty0
+  (187):\penalty0 1--30, 2017.
+
+\bibitem[{International Council on English Braille}(2013)]{ueb2013}
+{International Council on English Braille}.
+\newblock Rules of {Unified English Braille}.
+\newblock \url{https://iceb.org/ueb.html}, 2013.
+
+\bibitem[Johnson et~al.(2016)Johnson, Alahi, and
+  Fei-Fei]{johnson2016perceptual}
+Justin Johnson, Alexandre Alahi, and Li~Fei-Fei.
+\newblock Perceptual losses for real-time style transfer and super-resolution.
+\newblock In \emph{European Conference on Computer Vision (ECCV)}, pages
+  694--711. Springer, 2016.
+
+\bibitem[Koenig and Holbrook(1969)]{koenig1969reading}
+Alan~J. Koenig and M.~Cay Holbrook.
+\newblock \emph{Reading and Writing with Louis Braille}.
+\newblock American Foundation for the Blind, 1969.
+
+\bibitem[Li et~al.(2016)Li, Zhang, and Liu]{courbariaux2016ternary}
+Fengfu Li, Bo~Zhang, and Bin Liu.
+\newblock Ternary weight networks.
+\newblock \emph{arXiv preprint arXiv:1605.04711}, 2016.
+
+\bibitem[Lin et~al.(2014)Lin, Maire, Belongie, Hays, Perona, Ramanan,
+  Doll{\'a}r, and Zitnick]{lin2014coco}
+Tsung-Yi Lin, Michael Maire, Serge Belongie, James Hays, Pietro Perona, Deva
+  Ramanan, Piotr Doll{\'a}r, and C.~Lawrence Zitnick.
+\newblock {Microsoft COCO}: Common objects in context.
+\newblock In \emph{European Conference on Computer Vision (ECCV)}, pages
+  740--755, 2014.
+
+\bibitem[Nemeth(1972)]{nemeth1972}
+Abraham Nemeth.
+\newblock The {Nemeth Braille Code} for mathematics and science notation, 1972.
+
+\bibitem[Olshausen and Field(1997)]{olshausen1997sparse}
+Bruno~A. Olshausen and David~J. Field.
+\newblock Sparse coding with an overcomplete basis set: A strategy employed by
+  {V1}?
+\newblock \emph{Vision Research}, 37\penalty0 (23):\penalty0 3311--3325, 1997.
+
+\bibitem[Ribeiro et~al.(2020)Ribeiro, Bui, Collomosse, and
+  Ponti]{ribeiro2020sketchformer}
+Leo Sampaio~Ferraz Ribeiro, Tu~Bui, John Collomosse, and Moacir Ponti.
+\newblock {SketchFormer}: Transformer-based representation for sketched
+  structure.
+\newblock In \emph{IEEE/CVF Conference on Computer Vision and Pattern
+  Recognition (CVPR)}, 2020.
+
+\bibitem[Russomanno et~al.(2015)Russomanno, O'Modhrain, Gillespie, and
+  Rodger]{russomanno2015refreshable}
+Alexander Russomanno, Sile O'Modhrain, R.~Brent Gillespie, and Matthew W.~M.
+  Rodger.
+\newblock Refreshable braille display using pneumatic microactuators.
+\newblock In \emph{Proceedings of EuroHaptics}, 2015.
+
+\bibitem[Simonyan and Zisserman(2015)]{simonyan2015vgg}
+Karen Simonyan and Andrew Zisserman.
+\newblock Very deep convolutional networks for large-scale image recognition.
+\newblock \emph{arXiv preprint arXiv:1409.1556}, 2015.
+
+\bibitem[{The Unicode Consortium}(2023)]{unicode_braille}
+{The Unicode Consortium}.
+\newblock {Unicode Standard}: Braille patterns block ({U+2800--U+28FF}).
+\newblock \url{https://www.unicode.org/charts/PDF/U2800.pdf}, 2023.
+
+\bibitem[Vidal-Verd{\'u} and Hafez(2020)]{vidal2020refreshable}
+Fernando Vidal-Verd{\'u} and Moustapha Hafez.
+\newblock Refreshable braille displays: A survey of recent advances.
+\newblock \emph{IEEE Transactions on Haptics}, 13\penalty0 (1):\penalty0 3--17,
+  2020.
+
+\bibitem[Zhang et~al.(2018)Zhang, Isola, Efros, Shechtman, and
+  Wang]{zhang2018lpips}
+Richard Zhang, Phillip Isola, Alexei~A. Efros, Eli Shechtman, and Oliver Wang.
+\newblock The unreasonable effectiveness of deep features as a perceptual
+  metric.
+\newblock In \emph{IEEE/CVF Conference on Computer Vision and Pattern
+  Recognition (CVPR)}, pages 586--595, 2018.
+
+\end{thebibliography}

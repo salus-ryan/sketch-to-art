@@ -16,6 +16,7 @@
 \usepackage{xcolor}
 \usepackage{graphicx}
 \usepackage{subcaption}
+\usepackage[numbers,sort&compress]{natbib}
 
 % ─── Theorem environments ───
 \newtheorem{definition}{Definition}
@@ -108,6 +109,87 @@ signed ternary alphabet, extends the dimensionality to arbitrary $n$,
 and considers composition of cells into sequences.
 The result is a framework that bridges tactile encoding,
 symbolic representation, and neural feature spaces.
+
+% =====================================================================
+\section{Related Work}
+\label{sec:related}
+% =====================================================================
+
+Our work intersects several areas that have not previously been
+connected.
+
+\paragraph{Braille standards and encoding.}
+Standard 6-dot Braille was formalized by Louis Braille in
+1824~\cite{koenig1969reading}.
+Computer Braille extends this to 8 dots for a 256-character
+namespace~\cite{ueb2013}.
+Nemeth notation~\cite{nemeth1972} encodes mathematics
+within the 6-dot framework using prefix indicators.
+Unicode assigns 256 code points to 8-dot binary
+cells~\cite{unicode_braille}.
+All of these treat Braille as a \emph{fixed binary encoding};
+none generalize to signed, extensible, or algebraically structured
+representations.
+
+\paragraph{Tactile displays.}
+Refreshable Braille displays actuate physical pins corresponding
+to binary dot patterns~\cite{vidal2020refreshable,
+russomanno2015refreshable}.
+These devices faithfully render $\{0,1\}^n$ but have no
+representation of denied ($-1$) states.
+A signed display would require three-state actuators
+(raised, flat, depressed), which is mechanically feasible but
+unexplored.
+
+\paragraph{Neural style transfer.}
+Gatys et al.~\cite{gatys2016image} demonstrated iterative
+style transfer via Gram matrix matching in VGG feature space.
+Johnson et al.~\cite{johnson2016perceptual} introduced
+feedforward style transfer networks trained with perceptual loss,
+which we adopt as our base architecture.
+Huang and Belongie~\cite{huang2017adain} generalized to
+arbitrary styles via adaptive instance normalization.
+None of these works consider structured pre-training
+priors; our contribution is showing that a ternary spatial prior
+improves convergence.
+
+\paragraph{Curriculum and structured pre-training.}
+Bengio et al.~\cite{bengio2009curriculum} formalized curriculum
+learning: training on easy examples first accelerates convergence.
+BERT~\cite{devlin2019bert} introduced masked token prediction
+as a pre-training objective for language.
+Masked autoencoders~\cite{he2022mae} extended this to vision.
+Our Braille pre-training is a form of structured curriculum:
+the network first learns that spatial marks carry compositional
+meaning, then transfers this prior to natural images.
+
+\paragraph{Ternary representations.}
+Ternary weight networks~\cite{courbariaux2016ternary} quantize
+neural network weights to $\{-1, 0, +1\}$ for efficiency.
+Hubara et al.~\cite{hubara2017quantized} analyzed training
+with low-precision weights.
+These works use ternary values for \emph{compression};
+we use them for \emph{semantics}---the three states correspond
+to assertion, absence, and denial.
+
+\paragraph{Sparse and inspectable representations.}
+Olshausen and Field~\cite{olshausen1997sparse} showed that
+sparse coding in V1 learns oriented edge detectors.
+Bricken et al.~\cite{bricken2023monosemanticity} decomposed
+language model activations into interpretable features via
+dictionary learning.
+Generalized Braille shares the goal of inspectable coordinates
+but provides them by construction rather than post-hoc
+decomposition.
+
+\paragraph{Stroke-based models.}
+Sketch-RNN~\cite{ha2018sketchrnn} models drawings as sequences
+of pen strokes.
+SketchFormer~\cite{ribeiro2020sketchformer} applies transformers
+to sketch recognition.
+Our proposed BrailleNet foundation model operates on strokes
+but maps them to algebraically structured cell vectors
+rather than class labels or latent codes.
 
 % =====================================================================
 \section{The \texorpdfstring{$n$}{n}-dot Braille Family}
@@ -467,7 +549,8 @@ For $n$-dot signed Braille with $n$ configurable:
 \subsection{Network Architecture}
 
 The pre-training target is a convolutional encoder-decoder
-(TransformerNet) trained with perceptual loss via VGG-16 features.
+(TransformerNet~\cite{johnson2016perceptual}) trained with perceptual
+loss via VGG-16 features~\cite{simonyan2015vgg}.
 The hypothesis: teaching the network that spatial dot patterns carry
 structured, compositionally meaningful information produces better
 spatial preservation during style transfer.
@@ -508,7 +591,8 @@ We present results from two experiments:
 (1)~a composition test measuring whether small networks learn the
 algebraic structure of signed Braille cells, and
 (2)~a parallel training experiment comparing convergence speed of
-Braille-pretrained versus baseline convolutional style-transfer networks.
+Braille-pretrained versus baseline convolutional style-transfer
+networks on COCO~2017~\cite{lin2014coco}.
 
 \subsection{Experiment 1: Composition Law Learnability}
 
@@ -826,6 +910,38 @@ It is the quality of the learned composition law.
   }
 \end{equation}
 
+\subsection{Limitations}
+
+We note several limitations of the current work:
+
+\begin{enumerate}
+  \item \textbf{No comparison to standard pre-training baselines.}
+    We compare Braille-pretrained models to random initialization,
+    but not to ImageNet pre-training~\cite{simonyan2015vgg},
+    contrastive learning, or masked autoencoders~\cite{he2022mae}.
+    Such comparisons are needed to calibrate the magnitude of the effect.
+
+  \item \textbf{Single run per configuration.}
+    Each model was trained once. Repeated trials with different
+    random seeds are needed to establish statistical significance
+    and compute confidence intervals.
+
+  \item \textbf{Qualitative visual comparisons.}
+    The brushstroke differences are assessed visually, not with
+    perceptual metrics such as LPIPS~\cite{zhang2018lpips} or
+    FID scores. A user study or automated perceptual evaluation
+    would strengthen these claims.
+
+  \item \textbf{Single style image.}
+    All style-transfer models were trained on Starry Night.
+    Generalization across diverse style images remains to be tested.
+
+  \item \textbf{Convergence advantage diminishes.}
+    While the ternary models converge faster, all five models
+    reach within 2.2\% of each other after two full COCO epochs.
+    The benefit is in compute efficiency, not final quality.
+\end{enumerate}
+
 \subsection{Future Work}
 
 Three directions follow from these results:
@@ -858,7 +974,7 @@ Three directions follow from these results:
     rather than exploiting dimension-specific artifacts.
 \end{enumerate}
 
-\bibliographystyle{plain}
-% \bibliography{references}
+\bibliographystyle{plainnat}
+\bibliography{references}
 
 \end{document}
