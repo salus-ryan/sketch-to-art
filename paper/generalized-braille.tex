@@ -969,36 +969,108 @@ We note several limitations of the current work:
     The benefit is in compute efficiency, not final quality.
 \end{enumerate}
 
-\subsection{Future Work}
+\subsection{BrailleNet: Stroke-Native Foundation Model}
+\label{sec:braillenet}
 
-Three directions follow from these results:
+The convergence experiment (Section~\ref{sec:results}) reveals that
+the pixel domain imposes a ceiling: all five models converge to the
+same loss basin within 2.2\% regardless of braille initialization.
+We hypothesized that a model operating directly on strokes and cells
+--- bypassing pixels entirely --- would break through this ceiling.
+
+\paragraph{Architecture.}
+BrailleNet (7.98M parameters) consists of five modules sharing a
+$d=192$ embedding space:
+\begin{itemize}[nosep]
+  \item \textbf{Stroke Encoder} (2.8M): 6-layer transformer mapping
+    polyline point sequences to cell-aligned embeddings via learned
+    soft assignment.
+  \item \textbf{Cell Decoder} (79K): per-cell MLP producing
+    $\bvec \in \{-1, 0, +1\}^n$ via 3-way classification per dot.
+  \item \textbf{Stroke Generator} (1.9M): 3-layer transformer decoder
+    with cross-attention to cell embeddings, predicting next-point
+    coordinates and pen state (draw/sep/stop).
+  \item \textbf{Composition Backbone} (2.8M): 6-layer transformer
+    with text decoding head (per-cell character classification)
+    and sequence composition head (CLS pooling $\rightarrow$ result cell).
+  \item \textbf{Algebra Head} (387K): dual-head MLP with separate
+    vector ($\R^n \rightarrow \{-1,0,+1\}^n$) and scalar ($\R$)
+    output paths, resolving the Task~2 bottleneck.
+\end{itemize}
+
+\paragraph{Training.}
+All stages trained sequentially on a single NVIDIA H100 GPU with
+on-the-fly synthetic data generation (no dataset materialization).
+We used AdamW ($\eta = 3 \times 10^{-4}$, weight decay 0.01),
+cosine annealing, and medium jitter augmentation.
+Each stage ran for 100 epochs $\times$ 500 steps/epoch (batch size 64).
+Total training time: 122 minutes.
+
+\paragraph{Results.}
+\Cref{tab:braillenet} summarizes the stage-by-stage results.
+All stages exceed their targets.
+
+\begin{table}[h]
+\centering
+\caption{BrailleNet training results ($n=8$, signed ternary, H100).}
+\label{tab:braillenet}
+\begin{tabular}{@{}llccc@{}}
+  \toprule
+  Stage & Task & Target & Achieved & Time \\
+  \midrule
+  1   & Stroke $\rightarrow$ Cell (perception) & $>$95\% & 96.8\% & 29\,min \\
+  2   & Cell $\rightarrow$ Stroke (generation) & --- & 100\% pen acc & 29\,min \\
+  3a  & Cell $\rightarrow$ Text (decoding) & $>$95\% & 100\% & 11\,min \\
+  3b  & Cell seq $\rightarrow$ Result (composition) & $>$90\% & 99.9\% & 11\,min \\
+  3.5 & Ternary algebra (5 operations) & $>$90\% & 100\% vec, 100\% scl & 4\,min \\
+  4   & End-to-end: stroke $\rightarrow$ text & $>$90\% & 100\% & 39\,min \\
+  \bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=\textwidth]{figures/braillenet_training_curves.pdf}
+\caption{Training curves for all six BrailleNet stages.
+  Stage~1 (perception) is the hardest, requiring the stroke encoder
+  to discover cell boundaries from raw polylines.
+  Stages 3a, 3.5, and 4 converge within the first few epochs
+  because they operate directly on the algebraic cell vectors
+  rather than lossy pixel projections.}
+\label{fig:braillenet-curves}
+\end{figure}
+
+\paragraph{Comparison to pixel pre-training.}
+The convergence experiment showed all five pixel models landing in
+a 91.6K--93.6K COCO loss band (2.2\% spread).
+BrailleNet achieves 96.8\% \emph{cell-level} accuracy on
+perception alone --- and when chained end-to-end through the
+composition backbone, reaches perfect text decoding.
+The difference is architectural: operating on strokes and cells
+preserves the algebraic structure that pixels destroy.
+
+The dual-head algebra design (Future Work item 2) resolves the
+Task~2 bottleneck from 79.5\% to 100\%, confirming that the
+failure was representational (conflated output types), not
+computational.
+
+\subsection{Remaining Future Work}
+
+Two directions remain:
 
 \begin{enumerate}
-  \item \textbf{Stroke-native foundation model.}
-    The convergence experiment shows that the pixel domain imposes
-    a ceiling: all models converge to the same loss basin regardless
-    of initialization.
-    A stroke-native model operating directly on
-    $(\text{strokes} \leftrightarrow \text{cells} \leftrightarrow
-    \text{meaning})$ would bypass this ceiling.
-    The architecture requires a stroke encoder (polyline sequences
-    $\rightarrow$ cell vectors), a stroke generator (cell vectors
-    $\rightarrow$ motor programs), and a composition backbone
-    (cell sequences $\rightarrow$ text, mathematics, or programs).
-
-  \item \textbf{Dedicated algebra head.}
-    The Task~2 bottleneck (79.5\%) arises from conflating
-    vector and scalar outputs.
-    A dual-head architecture with separate vector
-    ($\R^n$) and scalar ($\R$) output paths is expected to
-    resolve this and bring algebraic reasoning above 95\%.
-
   \item \textbf{Zero-shot dimensional generalization.}
     The factorization result suggests that a model trained on
     $n=8$ may generalize to $n=10$ or $n=12$ without retraining,
     since the learned map $\phi$ is linear in the dot dimensions.
     This would confirm that the representation truly factorizes
     rather than exploiting dimension-specific artifacts.
+
+  \item \textbf{Real handwriting evaluation.}
+    BrailleNet is trained on synthetic jittered strokes.
+    Evaluation on actual stylus or finger input is needed
+    to calibrate the domain gap between synthetic augmentation
+    and true motor variability.
 \end{enumerate}
 
 \section*{Acknowledgments}
