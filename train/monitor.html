@@ -1,0 +1,656 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Style Transfer Training Monitor</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --card: #12121a;
+    --border: #1e1e2e;
+    --text: #e2e2e8;
+    --muted: #6b6b80;
+    --baseline: #ef4444;
+    --br6: #22c55e;
+    --br8: #3b82f6;
+    --br6s: #a855f7;
+    --br10s: #f59e0b;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'SF Mono', 'Fira Code', 'JetBrains Mono', monospace;
+    padding: 20px;
+    min-height: 100vh;
+  }
+  .header {
+    text-align: center;
+    margin-bottom: 24px;
+  }
+  .header h1 {
+    font-size: 1.6rem;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+    background: linear-gradient(135deg, #ef4444, #a855f7, #3b82f6, #f59e0b);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .header .subtitle {
+    color: var(--muted);
+    font-size: 0.75rem;
+    margin-top: 4px;
+  }
+  .cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px;
+    position: relative;
+    overflow: hidden;
+    transition: border-color 0.3s;
+  }
+  .card:hover { border-color: #333; }
+  .card .accent {
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+  }
+  .card .model-name {
+    font-size: 0.95rem;
+    font-weight: 700;
+    margin-bottom: 2px;
+  }
+  .card .model-desc {
+    font-size: 0.65rem;
+    color: var(--muted);
+    margin-bottom: 10px;
+  }
+  .card .loss-value {
+    font-size: 1.8rem;
+    font-weight: 800;
+    letter-spacing: -1px;
+    line-height: 1;
+    margin-bottom: 4px;
+  }
+  .card .loss-label {
+    font-size: 0.6rem;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+  .card .status-badge {
+    display: inline-block;
+    font-size: 0.6rem;
+    padding: 2px 8px;
+    border-radius: 999px;
+    margin-top: 8px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .status-complete { background: #22c55e22; color: #22c55e; }
+  .status-coco { background: #3b82f622; color: #3b82f6; }
+  .status-pretrain { background: #a855f722; color: #a855f7; }
+  .status-starting { background: #6b6b8022; color: #6b6b80; }
+  .status-loading_coco { background: #f59e0b22; color: #f59e0b; }
+  .status-waiting { background: #6b6b8022; color: #6b6b80; }
+
+  .progress-bar {
+    width: 100%;
+    height: 4px;
+    background: #1e1e2e;
+    border-radius: 2px;
+    margin-top: 10px;
+    overflow: hidden;
+  }
+  .progress-fill {
+    height: 100%;
+    border-radius: 2px;
+    transition: width 0.5s ease;
+  }
+
+  .charts {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 20px;
+  }
+  @media (max-width: 900px) {
+    .charts { grid-template-columns: 1fr; }
+  }
+  .chart-box {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px;
+  }
+  .chart-box h3 {
+    font-size: 0.75rem;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 12px;
+  }
+  .chart-container {
+    position: relative;
+    height: 300px;
+  }
+  .chart-container-lg {
+    position: relative;
+    height: 450px;
+  }
+
+  .h2h-table {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px;
+    overflow-x: auto;
+  }
+  .h2h-table h3 {
+    font-size: 0.75rem;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 12px;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.8rem;
+  }
+  th {
+    text-align: left;
+    color: var(--muted);
+    font-weight: 600;
+    padding: 6px 12px;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  td {
+    padding: 6px 12px;
+    border-bottom: 1px solid #1a1a25;
+    font-variant-numeric: tabular-nums;
+  }
+  .winner {
+    font-weight: 700;
+    position: relative;
+  }
+  .winner::after {
+    content: ' ◀';
+    font-size: 0.6rem;
+  }
+  .update-dot {
+    display: inline-block;
+    width: 6px; height: 6px;
+    background: #22c55e;
+    border-radius: 50%;
+    margin-right: 6px;
+    animation: pulse 2s infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+  .footer {
+    text-align: center;
+    color: var(--muted);
+    font-size: 0.65rem;
+    margin-top: 16px;
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>🎨 Braille Pre-Training Experiment</h1>
+  <div class="subtitle"><span class="update-dot"></span>Live · Refreshing every 3s</div>
+</div>
+
+<div class="cards" id="cards"></div>
+
+<div class="chart-box" style="margin-bottom:20px">
+  <h3>🏁 All Trajectories — COCO Loss Over Time</h3>
+  <div class="chart-container-lg"><canvas id="trajectoryChart"></canvas></div>
+</div>
+
+<div class="chart-box" style="margin-bottom:20px">
+  <h3>📊 Advantage vs Baseline (negative = beating baseline)</h3>
+  <div class="chart-container"><canvas id="deltaChart"></canvas></div>
+</div>
+
+<div class="charts">
+  <div class="chart-box">
+    <h3>COCO Loss Curves</h3>
+    <div class="chart-container"><canvas id="cocoChart"></canvas></div>
+  </div>
+  <div class="chart-box">
+    <h3>Pre-Training Loss</h3>
+    <div class="chart-container"><canvas id="pretrainChart"></canvas></div>
+  </div>
+</div>
+
+<div class="h2h-table">
+  <h3>Head-to-Head — COCO Loss at Same Batch</h3>
+  <table>
+    <thead><tr id="h2h-header"></tr></thead>
+    <tbody id="h2h-body"></tbody>
+  </table>
+</div>
+
+<div class="footer" id="footer">Waiting for data...</div>
+
+<script>
+const API = '/api/training';
+const MODEL_ORDER = ['baseline', 'br6', 'br8', 'br6s', 'br10s'];
+const CHECKPOINTS = [200, 400, 600, 800, 1000, 1200, 1400, 1600, 1800];
+
+let cocoChart, pretrainChart, trajectoryChart, deltaChart;
+
+function statusLabel(s) {
+  const map = {
+    complete: 'Complete',
+    coco: 'COCO Training',
+    pretrain: 'Pre-Training',
+    loading_coco: 'Loading COCO',
+    starting: 'Starting',
+    waiting: 'Waiting',
+  };
+  return map[s] || s;
+}
+
+function formatLoss(v) {
+  if (!v && v !== 0) return '—';
+  if (v >= 1e6) return (v / 1e6).toFixed(1) + 'M';
+  if (v >= 1e3) return (v / 1e3).toFixed(1) + 'K';
+  return v.toFixed(0);
+}
+
+function getProgress(d) {
+  if (d.done) return 100;
+  if (d.status === 'coco' && d.coco.length) {
+    const last = d.coco[d.coco.length - 1];
+    const epochProg = last.batch / last.total_batches;
+    return ((last.epoch - 1 + epochProg) / last.total_epochs) * 100;
+  }
+  if (d.status === 'pretrain' && d.pretrain.length) {
+    const last = d.pretrain[d.pretrain.length - 1];
+    return (last.step / last.total) * 50; // pretrain = first 50%
+  }
+  return 0;
+}
+
+function renderCards(data) {
+  const el = document.getElementById('cards');
+  el.innerHTML = '';
+  for (const key of MODEL_ORDER) {
+    const d = data[key];
+    if (!d) continue;
+    const m = d.meta;
+    const lastLoss = d.coco.length ? d.coco[d.coco.length - 1].loss
+      : d.pretrain.length ? d.pretrain[d.pretrain.length - 1].loss : null;
+    const progress = getProgress(d);
+
+    let detail = '';
+    if (d.status === 'coco' && d.coco.length) {
+      const c = d.coco[d.coco.length - 1];
+      detail = `E${c.epoch}/${c.total_epochs} B${c.batch}/${c.total_batches}`;
+    } else if (d.status === 'pretrain' && d.pretrain.length) {
+      const p = d.pretrain[d.pretrain.length - 1];
+      detail = `Step ${p.step}/${p.total}`;
+    }
+
+    el.innerHTML += `
+      <div class="card">
+        <div class="accent" style="background:${m.color}"></div>
+        <div class="model-name" style="color:${m.color}">${m.label}</div>
+        <div class="model-desc">${m.desc} · ${m.patterns}</div>
+        <div class="loss-value">${formatLoss(lastLoss)}</div>
+        <div class="loss-label">${d.status === 'pretrain' ? 'pretrain loss' : 'coco loss'}</div>
+        <span class="status-badge status-${d.status}">${statusLabel(d.status)}${detail ? ' · ' + detail : ''}</span>
+        <div class="progress-bar"><div class="progress-fill" style="width:${progress}%;background:${m.color}"></div></div>
+      </div>
+    `;
+  }
+}
+
+function buildChart(ctx, label) {
+  return new Chart(ctx, {
+    type: 'line',
+    data: { datasets: [] },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: { duration: 300 },
+      scales: {
+        x: {
+          type: 'linear',
+          title: { display: true, text: label === 'coco' ? 'Batch' : 'Step', color: '#6b6b80', font: { size: 10 } },
+          grid: { color: '#1e1e2e' },
+          ticks: { color: '#6b6b80', font: { size: 9 } },
+        },
+        y: {
+          title: { display: true, text: 'Loss', color: '#6b6b80', font: { size: 10 } },
+          grid: { color: '#1e1e2e' },
+          ticks: { color: '#6b6b80', font: { size: 9 }, callback: v => formatLoss(v) },
+        }
+      },
+      plugins: {
+        legend: {
+          labels: { color: '#e2e2e8', font: { family: 'SF Mono, monospace', size: 10 }, boxWidth: 12, padding: 12 }
+        },
+        tooltip: {
+          callbacks: { label: ctx => `${ctx.dataset.label}: ${formatLoss(ctx.parsed.y)}` }
+        }
+      },
+      elements: {
+        point: { radius: 0, hoverRadius: 4 },
+        line: { tension: 0.3, borderWidth: 2 }
+      }
+    }
+  });
+}
+
+function updateCharts(data) {
+  // COCO chart
+  const cocoDatasets = [];
+  for (const key of MODEL_ORDER) {
+    const d = data[key];
+    if (!d || !d.coco.length) continue;
+    cocoDatasets.push({
+      label: d.meta.label,
+      borderColor: d.meta.color,
+      backgroundColor: d.meta.color + '18',
+      data: d.coco.map(c => ({
+        x: (c.epoch - 1) * c.total_batches + c.batch,
+        y: c.loss
+      })),
+      fill: false,
+    });
+  }
+  cocoChart.data.datasets = cocoDatasets;
+  cocoChart.update('none');
+
+  // Pretrain chart
+  const preDatasets = [];
+  for (const key of MODEL_ORDER) {
+    const d = data[key];
+    if (!d || !d.pretrain.length) continue;
+    preDatasets.push({
+      label: d.meta.label,
+      borderColor: d.meta.color,
+      backgroundColor: d.meta.color + '18',
+      data: d.pretrain.map(p => ({ x: p.step, y: p.loss })),
+      fill: false,
+    });
+  }
+  pretrainChart.data.datasets = preDatasets;
+  pretrainChart.update('none');
+
+  // ====== TRAJECTORY CHART (big one) ======
+  const trajDatasets = [];
+  let maxBatches = 0;
+  for (const key of MODEL_ORDER) {
+    const d = data[key];
+    if (!d || !d.coco.length) continue;
+    const pts = d.coco.map(c => ({
+      x: (c.epoch - 1) * c.total_batches + c.batch,
+      y: c.loss
+    }));
+    if (pts.length) maxBatches = Math.max(maxBatches, pts[pts.length - 1].x);
+    trajDatasets.push({
+      label: d.meta.label + (d.done ? ' ✅' : ''),
+      borderColor: d.meta.color,
+      backgroundColor: d.meta.color + '10',
+      data: pts,
+      fill: true,
+      borderWidth: d.done ? 3 : 2,
+      borderDash: d.done ? [] : [],
+    });
+  }
+
+  // Add finish lines for completed models
+  for (const key of MODEL_ORDER) {
+    const d = data[key];
+    if (!d || !d.done || !d.coco.length) continue;
+    const finalLoss = d.coco[d.coco.length - 1].loss;
+    trajDatasets.push({
+      label: d.meta.label + ' final: ' + formatLoss(finalLoss),
+      borderColor: d.meta.color + '60',
+      borderDash: [6, 4],
+      borderWidth: 1,
+      pointRadius: 0,
+      data: [{x: 0, y: finalLoss}, {x: maxBatches || 3696, y: finalLoss}],
+      fill: false,
+    });
+  }
+
+  // Add epoch divider
+  const totalBatches = 1848;
+  if (maxBatches > totalBatches) {
+    trajDatasets.push({
+      label: '← E1 | E2 →',
+      borderColor: '#ffffff30',
+      borderDash: [3, 3],
+      borderWidth: 1,
+      pointRadius: 0,
+      data: [{x: totalBatches, y: 80000}, {x: totalBatches, y: 250000}],
+      fill: false,
+    });
+  }
+
+  trajectoryChart.data.datasets = trajDatasets;
+  trajectoryChart.update('none');
+
+  // ====== DELTA CHART (advantage vs baseline) ======
+  const baselineData = data.baseline;
+  if (baselineData && baselineData.coco.length) {
+    const baseLookup = {};
+    for (const c of baselineData.coco) {
+      baseLookup[c.batch] = c.loss;
+    }
+
+    const deltaDatasets = [];
+    // zero line
+    deltaDatasets.push({
+      label: 'Baseline (0%)',
+      borderColor: '#ffffff30',
+      borderDash: [4, 4],
+      borderWidth: 1,
+      pointRadius: 0,
+      data: [{x: 200, y: 0}, {x: 1800, y: 0}],
+      fill: false,
+    });
+
+    for (const key of MODEL_ORDER) {
+      if (key === 'baseline') continue;
+      const d = data[key];
+      if (!d || !d.coco.length) continue;
+      const pts = [];
+      for (const c of d.coco) {
+        if (c.epoch === 1 && baseLookup[c.batch]) {
+          const pctDiff = ((c.loss - baseLookup[c.batch]) / baseLookup[c.batch]) * 100;
+          pts.push({ x: c.batch, y: pctDiff });
+        }
+      }
+      if (pts.length) {
+        deltaDatasets.push({
+          label: d.meta.label,
+          borderColor: d.meta.color,
+          backgroundColor: d.meta.color + '20',
+          data: pts,
+          fill: true,
+          borderWidth: 2,
+        });
+      }
+    }
+    deltaChart.data.datasets = deltaDatasets;
+    deltaChart.update('none');
+  }
+}
+
+function renderH2H(data) {
+  const headerEl = document.getElementById('h2h-header');
+  const bodyEl = document.getElementById('h2h-body');
+
+  const models = MODEL_ORDER.filter(k => data[k] && data[k].coco.length);
+  headerEl.innerHTML = '<th>Batch</th>' + models.map(k =>
+    `<th style="color:${data[k].meta.color}">${data[k].meta.label}</th>`
+  ).join('') + '<th>Winner</th>';
+
+  // Build lookup: batch -> loss for each model (first epoch only for fair comparison)
+  const batchLoss = {};
+  for (const k of models) {
+    batchLoss[k] = {};
+    for (const c of data[k].coco) {
+      const key = c.batch;
+      if (!batchLoss[k][key] || c.epoch === 1) {
+        batchLoss[k][key] = c.loss;
+      }
+    }
+  }
+
+  bodyEl.innerHTML = '';
+  for (const cp of CHECKPOINTS) {
+    const vals = models.map(k => batchLoss[k]?.[cp]);
+    if (vals.every(v => v == null)) continue;
+
+    let minVal = Infinity, winnerIdx = -1;
+    vals.forEach((v, i) => { if (v != null && v < minVal) { minVal = v; winnerIdx = i; } });
+
+    const cells = vals.map((v, i) => {
+      const cls = (i === winnerIdx && vals.filter(x => x != null).length > 1) ? 'winner' : '';
+      const style = cls ? `color:${data[models[i]].meta.color}` : '';
+      return `<td class="${cls}" style="${style}">${v != null ? formatLoss(v) : '···'}</td>`;
+    }).join('');
+
+    const winnerName = winnerIdx >= 0 && vals.filter(x => x != null).length > 1
+      ? `<span style="color:${data[models[winnerIdx]].meta.color}">${data[models[winnerIdx]].meta.label}</span>`
+      : '';
+
+    bodyEl.innerHTML += `<tr><td style="color:var(--muted)">B${cp}</td>${cells}<td>${winnerName}</td></tr>`;
+  }
+}
+
+async function refresh() {
+  try {
+    const res = await fetch(API);
+    const data = await res.json();
+    renderCards(data);
+    updateCharts(data);
+    renderH2H(data);
+
+    const allDone = MODEL_ORDER.every(k => data[k]?.done);
+    const running = MODEL_ORDER.filter(k => data[k] && !data[k].done && data[k].status !== 'waiting').length;
+    document.getElementById('footer').innerHTML =
+      `${running} model${running !== 1 ? 's' : ''} training · Last update: ${new Date().toLocaleTimeString()}` +
+      (allDone ? ' · <b style="color:#22c55e">ALL COMPLETE</b>' : '');
+  } catch (e) {
+    document.getElementById('footer').textContent = 'API error: ' + e.message;
+  }
+}
+
+function buildTrajectoryChart(ctx) {
+  return new Chart(ctx, {
+    type: 'line',
+    data: { datasets: [] },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: { duration: 400 },
+      scales: {
+        x: {
+          type: 'linear',
+          title: { display: true, text: 'Total Batches (E1 + E2)', color: '#6b6b80', font: { size: 11 } },
+          grid: { color: '#1e1e2e' },
+          ticks: { color: '#6b6b80', font: { size: 10 } },
+        },
+        y: {
+          title: { display: true, text: 'COCO Loss', color: '#6b6b80', font: { size: 11 } },
+          grid: { color: '#1e1e2e' },
+          ticks: { color: '#6b6b80', font: { size: 10 }, callback: v => formatLoss(v) },
+        }
+      },
+      plugins: {
+        legend: {
+          position: 'top',
+          labels: { color: '#e2e2e8', font: { family: 'SF Mono, monospace', size: 11 }, boxWidth: 14, padding: 14 }
+        },
+        tooltip: {
+          callbacks: {
+            title: ctx => `Batch ${ctx[0].parsed.x}`,
+            label: ctx => `${ctx.dataset.label}: ${formatLoss(ctx.parsed.y)}`
+          }
+        }
+      },
+      elements: {
+        point: { radius: 0, hoverRadius: 5 },
+        line: { tension: 0.3 }
+      }
+    }
+  });
+}
+
+function buildDeltaChart(ctx) {
+  return new Chart(ctx, {
+    type: 'line',
+    data: { datasets: [] },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: { duration: 400 },
+      scales: {
+        x: {
+          type: 'linear',
+          title: { display: true, text: 'Batch (Epoch 1)', color: '#6b6b80', font: { size: 10 } },
+          grid: { color: '#1e1e2e' },
+          ticks: { color: '#6b6b80', font: { size: 9 } },
+        },
+        y: {
+          title: { display: true, text: '% vs Baseline', color: '#6b6b80', font: { size: 10 } },
+          grid: { color: '#1e1e2e' },
+          ticks: {
+            color: '#6b6b80', font: { size: 9 },
+            callback: v => (v > 0 ? '+' : '') + v.toFixed(0) + '%'
+          },
+        }
+      },
+      plugins: {
+        legend: {
+          labels: { color: '#e2e2e8', font: { family: 'SF Mono, monospace', size: 10 }, boxWidth: 12, padding: 12 }
+        },
+        tooltip: {
+          callbacks: {
+            label: ctx => `${ctx.dataset.label}: ${ctx.parsed.y > 0 ? '+' : ''}${ctx.parsed.y.toFixed(1)}%`
+          }
+        }
+      },
+      elements: {
+        point: { radius: 2, hoverRadius: 5 },
+        line: { tension: 0.3, borderWidth: 2 }
+      }
+    }
+  });
+}
+
+// Init
+cocoChart = buildChart(document.getElementById('cocoChart'), 'coco');
+pretrainChart = buildChart(document.getElementById('pretrainChart'), 'pretrain');
+trajectoryChart = buildTrajectoryChart(document.getElementById('trajectoryChart'));
+deltaChart = buildDeltaChart(document.getElementById('deltaChart'));
+refresh();
+setInterval(refresh, 3000);
+</script>
+</body>
+</html>
