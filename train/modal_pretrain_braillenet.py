@@ -51,6 +51,7 @@ def pretrain(
     import json
     import os
     import random
+    import sys
     import time
     from pathlib import Path
 
@@ -60,67 +61,61 @@ def pretrain(
     import torch.nn.functional as F
     from torch.utils.data import DataLoader, Dataset
 
+    # Force unbuffered stdout so Modal streams output in real-time
+    sys.stdout.reconfigure(line_buffering=True)
+
     device = torch.device("cuda")
-    print(f"Device: {device} ({torch.cuda.get_device_name()})")
+    print(f"Device: {device} ({torch.cuda.get_device_name()})", flush=True)
 
     # ===================================================================
     # DATASET
     # ===================================================================
 
     class QuickDrawStrokeDataset(Dataset):
-        """Load pre-processed QuickDraw stroke .npz files."""
+        """Load consolidated .npz dataset (single file, fast loading)."""
 
         def __init__(self, data_dir: str, max_points: int = 512):
             self.max_points = max_points
-            self.files = []
-            self.categories = []
-            self.cat_to_idx = {}
 
-            data_path = Path(data_dir) / "strokes"
-            if not data_path.exists():
-                raise FileNotFoundError(f"No strokes dir at {data_path}")
+            # Look for consolidated file first (fast), fall back to per-file
+            consolidated = Path(data_dir) / "quickdraw_consolidated.npz"
+            if not consolidated.exists():
+                raise FileNotFoundError(
+                    f"No consolidated data at {consolidated}. "
+                    f"Run the consolidation script first.")
 
-            for cat_dir in sorted(data_path.iterdir()):
-                if not cat_dir.is_dir():
-                    continue
-                cat_name = cat_dir.name.replace("_", " ")
-                if cat_name not in self.cat_to_idx:
-                    self.cat_to_idx[cat_name] = len(self.cat_to_idx)
-                cat_idx = self.cat_to_idx[cat_name]
+            print(f"Loading consolidated dataset: {consolidated}", flush=True)
+            t0 = time.time()
+            data = np.load(consolidated)
+            raw_points = data["points"]  # (N, 512, 2)
+            lengths = data["lengths"]    # (N,)
+            cats = data["categories"]    # (N,)
+            cat_names = data["cat_names"]  # array of strings
+            load_time = time.time() - t0
 
-                for npz_file in sorted(cat_dir.glob("*.npz")):
-                    self.files.append(npz_file)
-                    self.categories.append(cat_idx)
+            # Build masks from lengths
+            N = len(raw_points)
+            masks = np.zeros((N, max_points), dtype=np.bool_)
+            for i in range(N):
+                masks[i, :lengths[i]] = True
 
-            self.num_categories = len(self.cat_to_idx)
-            print(f"Dataset: {len(self.files)} samples, {self.num_categories} categories")
+            self.points = torch.from_numpy(raw_points.astype(np.float32))
+            self.masks = torch.from_numpy(masks)
+            self.categories = torch.from_numpy(cats.astype(np.int64))
+            self.num_categories = len(cat_names)
+
+            print(f"Dataset: {N} samples, {self.num_categories} categories, "
+                  f"{self.points.nbytes / 1024**2:.0f} MB in RAM, "
+                  f"loaded in {load_time:.1f}s", flush=True)
 
         def __len__(self):
-            return len(self.files)
+            return len(self.points)
 
         def __getitem__(self, idx):
-            data = np.load(self.files[idx])
-            points = data["points"].astype(np.float32)
-
-            # Pad or truncate to max_points
-            T = len(points)
-            if T > self.max_points:
-                points = points[:self.max_points]
-                T = self.max_points
-
-            # Create mask (True for real points)
-            mask = np.ones(self.max_points, dtype=np.bool_)
-            if T < self.max_points:
-                padded = np.full((self.max_points, 2), -2.0, dtype=np.float32)
-                padded[:T] = points
-                points = padded
-                mask[T:] = False
-
             return {
-                "points": torch.from_numpy(points),
-                "mask": torch.from_numpy(mask),
+                "points": self.points[idx],
+                "mask": self.masks[idx],
                 "category": self.categories[idx],
-                "num_points": T,
             }
 
     # ===================================================================
@@ -222,15 +217,15 @@ def pretrain(
     # TRAINING
     # ===================================================================
 
-    print(f"\nConfig: d_model={d_model}, nhead={nhead}, layers={num_layers}")
-    print(f"  batch_size={batch_size}, lr={lr}, epochs={num_epochs}")
-    print(f"  mask_ratio={mask_ratio}, max_points={max_points}")
+    print(f"\nConfig: d_model={d_model}, nhead={nhead}, layers={num_layers}", flush=True)
+    print(f"  batch_size={batch_size}, lr={lr}, epochs={num_epochs}", flush=True)
+    print(f"  mask_ratio={mask_ratio}, max_points={max_points}", flush=True)
 
     # Load data
     dataset = QuickDrawStrokeDataset("/data", max_points=max_points)
     loader = DataLoader(
         dataset, batch_size=batch_size, shuffle=True,
-        num_workers=4, drop_last=True, pin_memory=True,
+        num_workers=0, drop_last=True, pin_memory=True,
     )
 
     # Build model
@@ -240,7 +235,7 @@ def pretrain(
     ).to(device)
 
     param_count = sum(p.numel() for p in model.parameters())
-    print(f"  Parameters: {param_count:,}")
+    print(f"  Parameters: {param_count:,}", flush=True)
 
     optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=0.01)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
@@ -262,7 +257,7 @@ def pretrain(
         for batch in loader:
             points = batch["points"].to(device)
             mask = batch["mask"].to(device)
-            categories = torch.tensor(batch["category"], device=device)
+            categories = batch["category"].to(device)
 
             B, T, _ = points.shape
 
@@ -321,6 +316,11 @@ def pretrain(
                 epoch_cat_acc += (cat_pred.argmax(1) == categories).float().mean().item()
             num_batches += 1
 
+            # Per-batch progress (every 100 batches)
+            if num_batches % 100 == 0:
+                print(f"  [{epoch+1}/{num_epochs}] batch {num_batches}/{len(loader)} "
+                      f"loss={loss.item():.4f} cat_acc={(cat_pred.argmax(1) == categories).float().mean().item():.1%}", flush=True)
+
         # Epoch summary
         avg_loss = epoch_loss / num_batches
         avg_point = epoch_point_loss / num_batches
@@ -331,7 +331,7 @@ def pretrain(
 
         print(f"Epoch {epoch+1}/{num_epochs} ({elapsed/60:.1f}min) | "
               f"loss={avg_loss:.4f} point={avg_point:.4f} "
-              f"cat={avg_cat:.4f}(acc={avg_cat_acc:.1%}) sep={avg_sep:.4f}")
+              f"cat={avg_cat:.4f}(acc={avg_cat_acc:.1%}) sep={avg_sep:.4f}", flush=True)
 
         # Save best
         if avg_loss < best_loss:
@@ -349,7 +349,7 @@ def pretrain(
                     "num_categories": dataset.num_categories,
                 },
             }, save_path)
-            print(f"  → Saved best encoder: {save_path}")
+            print(f"  → Saved best encoder: {save_path}", flush=True)
 
     # Save final
     total_time = time.time() - start_time
@@ -370,9 +370,9 @@ def pretrain(
         },
     }, final_path)
     model_volume.commit()
-    print(f"\nTraining complete in {total_time/3600:.2f} hours")
-    print(f"Final model saved: {final_path}")
-    print(f"Best loss: {best_loss:.4f}")
+    print(f"\nTraining complete in {total_time/3600:.2f} hours", flush=True)
+    print(f"Final model saved: {final_path}", flush=True)
+    print(f"Best loss: {best_loss:.4f}", flush=True)
 
     return {"best_loss": best_loss, "training_time_h": total_time / 3600}
 
