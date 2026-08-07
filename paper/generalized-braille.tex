@@ -1096,6 +1096,21 @@ Two directions remain:
     Evaluation on actual stylus or finger input is needed
     to calibrate the domain gap between synthetic augmentation
     and true motor variability.
+
+  \item \textbf{Epistemic ternary representations in language models.}
+    The signed alphabet distinguishes native zero (no information)
+    from cancelled zero (resolved contradiction,
+    $(+1) + (-1) \to 0$), a distinction absent from
+    binary and continuous representations.
+    Current architectures conflate ignorance with negation---a
+    precondition for confabulation.
+    Compositional sequences preserve the provenance that
+    single-cell reduction destroys:
+    the sequence $[+1, -1]$ is distinguishable from $[0]$
+    even when both reduce to the same scalar.
+    Whether ternary-structured latent spaces reduce
+    hallucination rates in generative language models
+    is an open empirical question.
 \end{enumerate}
 
 \section*{Acknowledgments}
